@@ -1,0 +1,4628 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ロードヒーティング現地調査アプリ（タッチペン対応版）</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+  :root {
+    --bg-0: #0d1117;
+    --bg-1: #161b22;
+    --bg-2: #1f2730;
+    --bg-3: #2a3441;
+    --border: #30363d;
+    --border-strong: #484f58;
+    --text-0: #f0f6fc;
+    --text-1: #c9d1d9;
+    --text-2: #8b949e;
+    --accent: #58a6ff;
+    --accent-2: #1f6feb;
+    --heater: #ff6b35;
+    --heater-light: #ffb088;
+    --panel: #4ea8de;
+    --power: #ffd23f;
+    --wire: #e9ecef;
+    --area: #06d6a0;
+    --memo: #c77dff;
+    --danger: #f85149;
+    --success: #3fb950;
+    --warn: #d29922;
+    --shadow: 0 8px 24px rgba(0,0,0,0.4);
+    --shadow-lg: 0 16px 48px rgba(0,0,0,0.6);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; overflow: hidden; }
+  body {
+    font-family: "Noto Sans JP", -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--bg-0);
+    color: var(--text-0);
+    font-size: 14px;
+    line-height: 1.5;
+  }
+  button { font-family: inherit; cursor: pointer; }
+  input, select, textarea { font-family: inherit; }
+  .mono { font-family: "JetBrains Mono", monospace; }
+
+  /* Layout */
+  #app {
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    grid-template-rows: 56px 1fr;
+    height: 100vh;
+    width: 100vw;
+  }
+  header {
+    grid-column: 1 / -1;
+    background: linear-gradient(90deg, var(--bg-1), var(--bg-2));
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 20px;
+    gap: 16px;
+  }
+  header .logo {
+    font-weight: 700;
+    font-size: 16px;
+    letter-spacing: 0.02em;
+    color: var(--text-0);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  header .logo .dot {
+    width: 10px; height: 10px;
+    background: var(--heater);
+    border-radius: 50%;
+    box-shadow: 0 0 12px var(--heater);
+  }
+  header .sub {
+    color: var(--text-2);
+    font-size: 12px;
+  }
+  header .actions {
+    margin-left: auto;
+    display: flex;
+    gap: 8px;
+  }
+  header button {
+    background: var(--bg-3);
+    border: 1px solid var(--border);
+    color: var(--text-1);
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    transition: all 0.15s;
+  }
+  header button:hover {
+    background: var(--accent-2);
+    color: white;
+    border-color: var(--accent-2);
+  }
+  header button.danger:hover {
+    background: var(--danger);
+    border-color: var(--danger);
+  }
+
+  /* Sidebar */
+  aside {
+    background: var(--bg-1);
+    border-right: 1px solid var(--border);
+    overflow-y: auto;
+    overflow-x: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  .panel {
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .panel-title {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-2);
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .panel-title .num {
+    background: var(--bg-3);
+    color: var(--text-1);
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    margin-left: auto;
+  }
+
+  /* Tool buttons */
+  .tools {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+  .tool {
+    background: var(--bg-2);
+    border: 1px solid var(--border);
+    color: var(--text-1);
+    padding: 10px 8px;
+    border-radius: 6px;
+    font-size: 12px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    transition: all 0.15s;
+  }
+  .tool:hover { border-color: var(--accent); }
+  .tool.active {
+    background: var(--accent-2);
+    border-color: var(--accent);
+    color: white;
+    box-shadow: 0 0 0 2px rgba(88,166,255,0.2);
+  }
+  .tool .icon { font-size: 18px; }
+  .tool[data-type="heater"] .icon { color: var(--heater); }
+  .tool[data-type="panel"] .icon { color: var(--panel); }
+  .tool[data-type="power"] .icon { color: var(--power); }
+  .tool[data-type="wire"] .icon { color: var(--wire); }
+  .tool[data-type="area"] .icon { color: var(--area); }
+  .tool[data-type="memo"] .icon { color: var(--memo); }
+  .tool.active .icon { color: white !important; }
+
+  /* Form fields */
+  .field {
+    margin-bottom: 10px;
+  }
+  .field label {
+    display: block;
+    font-size: 11px;
+    color: var(--text-2);
+    margin-bottom: 4px;
+    font-weight: 500;
+  }
+  .field input, .field select, .field textarea {
+    width: 100%;
+    background: var(--bg-2);
+    border: 1px solid var(--border);
+    color: var(--text-0);
+    padding: 8px 10px;
+    border-radius: 6px;
+    font-size: 13px;
+  }
+  .field input:focus, .field select:focus, .field textarea:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px rgba(88,166,255,0.15);
+  }
+  .field-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  /* Layer selector */
+  .layer-selector {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px;
+  }
+  .layer-btn {
+    background: var(--bg-2);
+    border: 1px solid var(--border);
+    color: var(--text-1);
+    padding: 6px;
+    border-radius: 4px;
+    font-size: 11px;
+    transition: all 0.15s;
+  }
+  .layer-btn:hover { border-color: var(--accent); }
+  .layer-btn.active {
+    background: var(--accent-2);
+    border-color: var(--accent);
+    color: white;
+  }
+
+  /* Item list */
+  .item-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 240px;
+    overflow-y: auto;
+  }
+  .item {
+    background: var(--bg-2);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--border-strong);
+    border-radius: 6px;
+    padding: 8px 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .item:hover {
+    background: var(--bg-3);
+    border-left-color: var(--accent);
+  }
+  .item[data-type="heater"] { border-left-color: var(--heater); }
+  .item[data-type="panel"] { border-left-color: var(--panel); }
+  .item[data-type="power"] { border-left-color: var(--power); }
+  .item[data-type="wire"] { border-left-color: var(--wire); }
+  .item[data-type="area"] { border-left-color: var(--area); }
+  .item[data-type="memo"] { border-left-color: var(--memo); }
+  .item .name {
+    flex: 1;
+    font-size: 12px;
+    color: var(--text-0);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .item .meta {
+    font-size: 10px;
+    color: var(--text-2);
+    font-family: "JetBrains Mono", monospace;
+  }
+  .item .delete {
+    background: transparent;
+    border: none;
+    color: var(--text-2);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 14px;
+  }
+  .item .delete:hover {
+    background: var(--danger);
+    color: white;
+  }
+
+  /* Stats */
+  .stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+  .stat {
+    background: var(--bg-2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 10px;
+  }
+  .stat .label {
+    font-size: 10px;
+    color: var(--text-2);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .stat .value {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text-0);
+    font-family: "JetBrains Mono", monospace;
+    margin-top: 2px;
+  }
+  .stat .unit {
+    font-size: 11px;
+    color: var(--text-2);
+    margin-left: 2px;
+  }
+
+  /* Map */
+  main {
+    position: relative;
+    background: var(--bg-2);
+  }
+  #map {
+    width: 100%;
+    height: 100%;
+    background: #1a2030;
+  }
+
+  /* Map overlay status */
+  .map-status {
+    position: absolute;
+    top: 16px;
+    left: 16px;
+    background: rgba(13, 17, 23, 0.92);
+    backdrop-filter: blur(8px);
+    border: 1px solid var(--border);
+    color: var(--text-0);
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-size: 13px;
+    z-index: 1000;
+    max-width: 380px;
+    box-shadow: var(--shadow);
+    display: none;
+  }
+  .map-status.active { display: block; }
+  .map-status .hint {
+    font-size: 11px;
+    color: var(--text-2);
+    margin-top: 4px;
+  }
+  .map-status .step {
+    color: var(--accent);
+    font-weight: 700;
+    font-family: "JetBrains Mono", monospace;
+    margin-right: 6px;
+  }
+
+  /* GPS button */
+  .gps-btn {
+    position: absolute;
+    bottom: 110px;
+    right: 16px;
+    width: 56px;
+    height: 56px;
+    background: var(--bg-1);
+    border: 2px solid var(--accent);
+    border-radius: 50%;
+    color: var(--accent);
+    font-size: 22px;
+    z-index: 1000;
+    box-shadow: var(--shadow);
+    transition: all 0.15s;
+  }
+
+  /* Floating action toolbar (primary tool selector) */
+  .fab-toolbar {
+    position: absolute;
+    bottom: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(13, 17, 23, 0.94);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 8px;
+    display: flex;
+    gap: 4px;
+    z-index: 1000;
+    box-shadow: var(--shadow-lg);
+    max-width: calc(100vw - 24px);
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .fab-toolbar::-webkit-scrollbar { display: none; }
+  .fab-tool {
+    flex: 0 0 auto;
+    width: 64px;
+    height: 64px;
+    background: transparent;
+    border: 2px solid transparent;
+    border-radius: 12px;
+    color: var(--text-1);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    transition: all 0.2s;
+    cursor: pointer;
+    font-family: inherit;
+    position: relative;
+  }
+  .fab-tool .fab-icon {
+    font-size: 22px;
+    line-height: 1;
+  }
+  .fab-tool .fab-label {
+    font-size: 10px;
+    line-height: 1.1;
+    font-weight: 500;
+  }
+  .fab-tool .fab-kbd {
+    position: absolute;
+    top: 2px;
+    right: 4px;
+    font-size: 9px;
+    color: var(--text-2);
+    font-family: "JetBrains Mono", monospace;
+    opacity: 0.6;
+  }
+  .fab-tool:hover {
+    background: var(--bg-2);
+    color: var(--text-0);
+  }
+  .fab-tool.active {
+    background: var(--bg-3);
+    border-color: currentColor;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+  }
+  .fab-tool[data-type="nav"] { color: var(--text-1); }
+  .fab-tool[data-type="heater"] { color: var(--heater); }
+  .fab-tool[data-type="panel"] { color: var(--panel); }
+  .fab-tool[data-type="power"] { color: var(--power); }
+  .fab-tool[data-type="wire"] { color: var(--wire); }
+  .fab-tool[data-type="area"] { color: var(--area); }
+  .fab-tool[data-type="memo"] { color: var(--memo); }
+
+  /* Mode banner (shows current tool + hint at top of map) */
+  .mode-banner {
+    position: absolute;
+    top: 16px;
+    left: 16px;
+    background: rgba(13, 17, 23, 0.94);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 10px 14px;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    box-shadow: var(--shadow);
+    max-width: calc(100vw - 32px);
+    transition: all 0.25s;
+  }
+  .mode-banner .mode-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    flex-shrink: 0;
+    background: var(--bg-3);
+  }
+  .mode-banner.heater .mode-icon { background: rgba(255,107,53,0.22); color: var(--heater); }
+  .mode-banner.panel .mode-icon { background: rgba(78,168,222,0.22); color: var(--panel); }
+  .mode-banner.power .mode-icon { background: rgba(255,210,63,0.22); color: var(--power); }
+  .mode-banner.wire .mode-icon { background: rgba(233,236,239,0.18); color: var(--wire); }
+  .mode-banner.area .mode-icon { background: rgba(6,214,160,0.22); color: var(--area); }
+  .mode-banner.memo .mode-icon { background: rgba(199,125,255,0.22); color: var(--memo); }
+  .mode-banner.nav .mode-icon { background: var(--bg-3); color: var(--text-1); }
+  .mode-banner .mode-text {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.3;
+  }
+  .mode-banner .mode-name {
+    font-weight: 700;
+    font-size: 13px;
+    color: var(--text-0);
+  }
+  .mode-banner .mode-hint {
+    font-size: 11px;
+    color: var(--text-2);
+  }
+
+  /* Floating action buttons (top right) */
+  .map-action-stack {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    z-index: 1000;
+  }
+  .map-action {
+    background: rgba(13, 17, 23, 0.94);
+    backdrop-filter: blur(10px);
+    border: 1px solid var(--border);
+    color: var(--text-0);
+    padding: 8px 14px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    box-shadow: var(--shadow);
+    transition: all 0.15s;
+  }
+  .map-action:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  /* Photo attachment */
+  .photo-uploader {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .photo-buttons {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+  .photo-btn {
+    background: var(--bg-2);
+    border: 1px dashed var(--border-strong);
+    color: var(--text-1);
+    padding: 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    transition: all 0.15s;
+  }
+  .photo-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  .photo-thumbs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .photo-thumb {
+    position: relative;
+    width: 72px;
+    height: 72px;
+    border-radius: 6px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    background: var(--bg-2);
+  }
+  .photo-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    cursor: pointer;
+  }
+  .photo-thumb .remove {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    width: 20px;
+    height: 20px;
+    background: rgba(0,0,0,0.7);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    font-size: 14px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    line-height: 1;
+  }
+  .photo-thumb .remove:hover { background: var(--danger); }
+
+  /* Mode toggle (header) */
+  .mode-toggle {
+    display: inline-flex;
+    background: var(--bg-3);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 2px;
+    gap: 0;
+  }
+  .mode-toggle .mode-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-2);
+    padding: 5px 10px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 500;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    transition: all 0.15s;
+  }
+  .mode-toggle .mode-btn:hover { color: var(--text-0); }
+  .mode-toggle .mode-btn.active {
+    background: var(--accent-2);
+    color: white;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+  }
+  .mode-toggle .mode-btn.active[data-mode="pen"] {
+    background: linear-gradient(135deg, #ff6b35, #e85a25);
+  }
+
+  /* Pen mode: bigger touch targets */
+  body.pen-mode .fab-tool { width: 72px; height: 72px; }
+  body.pen-mode .fab-tool .fab-icon { font-size: 28px; }
+  body.pen-mode .fab-tool .fab-label { font-size: 11px; }
+  body.pen-mode .gps-btn { width: 64px; height: 64px; font-size: 26px; }
+  body.pen-mode .map-action { padding: 10px 18px; font-size: 14px; }
+  body.pen-mode .mic-btn { padding: 14px; font-size: 14px; }
+  body.pen-mode .heater-handle { width: 32px; height: 32px; border-width: 4px; font-size: 13px; }
+  body.pen-mode .heater-handle.end { width: 24px; height: 24px; border-width: 5px; }
+  body.pen-mode .vertex-handle { width: 20px; height: 20px; border-width: 3px; }
+
+  .fab-tool.pen-only { display: none; }
+  body.pen-mode .fab-tool.pen-only { display: flex; }
+
+  body.pen-mode .mode-banner {
+    border: 2px solid var(--heater);
+    box-shadow: 0 0 16px rgba(255,107,53,0.3), var(--shadow);
+    position: relative;
+  }
+  body.pen-mode .mode-banner::after {
+    content: '✏️';
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    background: var(--heater);
+    color: white;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+  }
+
+  body.pen-mode.sketch-active #map,
+  body.pen-mode.drawing-heater #map {
+    cursor: crosshair;
+  }
+
+  /* Drag-to-draw heater preview label */
+  .heater-drag-label {
+    background: rgba(255,107,53,0.95);
+    color: white;
+    font-size: 14px;
+    font-weight: 700;
+    padding: 4px 10px;
+    border-radius: 6px;
+    border: 2px solid white;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+    font-family: "JetBrains Mono", monospace;
+    pointer-events: none;
+    white-space: nowrap;
+  }
+
+  /* Sketch palette */
+  .sketch-palette {
+    position: absolute;
+    bottom: 108px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(13, 17, 23, 0.96);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 10px 14px;
+    display: none;
+    align-items: center;
+    gap: 16px;
+    z-index: 999;
+    box-shadow: var(--shadow-lg);
+  }
+  .sketch-palette.show { display: flex; }
+  .palette-section {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+  }
+  .palette-label {
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-2);
+    font-weight: 600;
+  }
+  .palette-colors, .palette-widths {
+    display: flex;
+    gap: 4px;
+  }
+  .palette-color {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: 2px solid var(--border);
+    cursor: pointer;
+    transition: all 0.15s;
+    padding: 0;
+  }
+  .palette-color:hover { transform: scale(1.1); }
+  .palette-color.active {
+    border-color: white;
+    transform: scale(1.15);
+    box-shadow: 0 0 0 2px var(--accent);
+  }
+  .palette-width {
+    width: 40px;
+    height: 28px;
+    background: var(--bg-2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    cursor: pointer;
+    color: var(--text-1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+  }
+  .palette-width:hover { background: var(--bg-3); }
+  .palette-width.active {
+    background: var(--accent-2);
+    border-color: var(--accent);
+    color: white;
+  }
+  .palette-action {
+    background: var(--bg-2);
+    border: 1px solid var(--border);
+    color: var(--text-1);
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 500;
+    cursor: pointer;
+    font-family: inherit;
+    white-space: nowrap;
+  }
+  .palette-action:hover {
+    background: var(--bg-3);
+    color: var(--text-0);
+  }
+  #sketch-eraser.active {
+    background: var(--danger);
+    color: white;
+    border-color: var(--danger);
+  }
+  #sketch-clear-all:hover {
+    background: var(--danger);
+    color: white;
+    border-color: var(--danger);
+  }
+
+  /* Project info modal */
+  .pi-section {
+    background: var(--bg-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 14px;
+    margin-bottom: 10px;
+  }
+  .pi-section-title {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--accent);
+    margin-bottom: 10px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--border);
+  }
+  .pi-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px 12px;
+  }
+  .pi-grid .field { margin: 0; }
+  @media (max-width: 600px) {
+    .pi-grid { grid-template-columns: 1fr; }
+  }
+
+  /* Field memo panel */
+  .field-memo-panel {
+    background: linear-gradient(180deg, var(--bg-1), rgba(88,166,255,0.04));
+    border-top: 2px solid var(--accent-2);
+    flex-shrink: 0;
+  }
+  .memo-controls {
+    margin-bottom: 8px;
+  }
+  .mic-btn {
+    width: 100%;
+    background: var(--bg-2);
+    border: 2px solid var(--border);
+    color: var(--text-0);
+    padding: 12px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    cursor: pointer;
+    font-family: inherit;
+    font-weight: 600;
+    transition: all 0.2s;
+  }
+  .mic-btn:hover {
+    border-color: var(--accent);
+    background: var(--bg-3);
+  }
+  .mic-btn.recording {
+    background: linear-gradient(135deg, #ff6b35, #ff4115);
+    border-color: #ff4115;
+    color: white;
+    animation: rec-pulse 1.5s infinite;
+  }
+  @keyframes rec-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(255,65,21,0.6); }
+    50% { box-shadow: 0 0 0 12px rgba(255,65,21,0); }
+  }
+  .mic-btn .mic-icon {
+    font-size: 22px;
+    line-height: 1;
+  }
+  .mic-btn.recording .mic-icon::after {
+    content: " 録音中";
+    font-size: 11px;
+  }
+  .mic-btn .mic-label {
+    font-size: 13px;
+  }
+  .memo-status {
+    font-size: 11px;
+    color: var(--text-2);
+    margin-top: 4px;
+    min-height: 14px;
+    text-align: center;
+  }
+  .memo-status.recording {
+    color: var(--heater);
+    font-weight: 600;
+  }
+  .memo-input {
+    width: 100%;
+    background: var(--bg-2);
+    border: 1px solid var(--border);
+    color: var(--text-0);
+    padding: 8px 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-family: inherit;
+    resize: vertical;
+    min-height: 50px;
+  }
+  .memo-input:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px rgba(88,166,255,0.15);
+  }
+  .memo-input-actions {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 6px;
+    margin: 6px 0 10px;
+  }
+  .btn-add-memo {
+    background: var(--success);
+    color: white;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .btn-add-memo:hover { background: #2da44e; }
+  .btn-add-memo:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+  .btn-clear-memo {
+    background: var(--bg-3);
+    color: var(--text-1);
+    border: 1px solid var(--border);
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 11px;
+    cursor: pointer;
+  }
+  .btn-clear-memo:hover { color: var(--text-0); }
+  .memo-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 280px;
+    overflow-y: auto;
+  }
+  .memo-entry {
+    background: var(--bg-2);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent-2);
+    border-radius: 6px;
+    padding: 6px 8px;
+    font-size: 12px;
+  }
+  .memo-entry.voice {
+    border-left-color: var(--heater);
+  }
+  .memo-entry .memo-meta {
+    font-size: 10px;
+    color: var(--text-2);
+    font-family: "JetBrains Mono", monospace;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 3px;
+  }
+  .memo-entry .memo-meta .badge {
+    font-size: 9px;
+    padding: 1px 5px;
+    border-radius: 3px;
+    background: var(--heater);
+    color: white;
+    font-weight: 600;
+  }
+  .memo-entry .memo-text {
+    color: var(--text-0);
+    line-height: 1.4;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .memo-entry .memo-text[contenteditable="true"] {
+    outline: 1px solid var(--accent);
+    padding: 2px 4px;
+    border-radius: 3px;
+    background: var(--bg-3);
+  }
+  .memo-entry-actions {
+    display: flex;
+    gap: 4px;
+    margin-top: 4px;
+    justify-content: flex-end;
+  }
+  .memo-entry-actions button {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-2);
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 10px;
+    cursor: pointer;
+  }
+  .memo-entry-actions button:hover {
+    color: var(--text-0);
+    border-color: var(--border-strong);
+  }
+  .memo-entry-actions .delete:hover {
+    background: var(--danger);
+    color: white;
+    border-color: var(--danger);
+  }
+
+  /* Photo viewer (lightbox) */
+  .photo-viewer {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.92);
+    z-index: 9000;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+  }
+  .photo-viewer.show { display: flex; }
+  .photo-viewer img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    border-radius: 8px;
+  }
+  .photo-viewer .close-btn {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    width: 40px;
+    height: 40px;
+    background: rgba(255,255,255,0.15);
+    border: none;
+    border-radius: 50%;
+    color: white;
+    font-size: 22px;
+    cursor: pointer;
+  }
+
+  /* Duplicate dialog (smaller, simpler) */
+  .duplicate-section {
+    background: var(--bg-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px;
+    margin-top: 12px;
+  }
+  .duplicate-section .sec-title {
+    font-size: 11px;
+    color: var(--text-2);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 8px;
+    font-weight: 600;
+  }
+  .dir-toggle {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px;
+    margin-top: 4px;
+  }
+  .dir-toggle button {
+    background: var(--bg-3);
+    border: 1px solid var(--border);
+    color: var(--text-1);
+    padding: 6px;
+    border-radius: 4px;
+    font-size: 11px;
+    cursor: pointer;
+  }
+  .dir-toggle button.active {
+    background: var(--heater);
+    border-color: var(--heater);
+    color: white;
+  }
+
+  /* Hide old sidebar tools panel - tools now in floating bar */
+  .panel-tools-hidden {
+    display: none;
+  }
+  .gps-btn:hover {
+    background: var(--accent-2);
+    color: white;
+    transform: scale(1.05);
+  }
+  .gps-btn.locating {
+    animation: pulse 1.4s infinite;
+    color: var(--success);
+    border-color: var(--success);
+  }
+  .gps-btn.tracking {
+    background: var(--success);
+    color: white;
+    border-color: var(--success);
+  }
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(63,185,80,0.5); }
+    50% { box-shadow: 0 0 0 14px rgba(63,185,80,0); }
+  }
+
+  /* Current location display */
+  .gps-coord {
+    position: absolute;
+    bottom: 24px;
+    right: 84px;
+    background: rgba(13, 17, 23, 0.92);
+    backdrop-filter: blur(8px);
+    border: 1px solid var(--border);
+    color: var(--text-1);
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11px;
+    z-index: 1000;
+    box-shadow: var(--shadow);
+    display: none;
+    line-height: 1.5;
+  }
+  .gps-coord.show { display: block; }
+  .gps-coord .label {
+    color: var(--success);
+    font-weight: 700;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .gps-coord .accuracy {
+    color: var(--text-2);
+    font-size: 10px;
+  }
+  .gps-coord button {
+    background: var(--bg-3);
+    border: 1px solid var(--border);
+    color: var(--text-1);
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 10px;
+    margin-top: 6px;
+    width: 100%;
+    cursor: pointer;
+  }
+  .gps-coord button:hover {
+    background: var(--accent-2);
+    color: white;
+    border-color: var(--accent-2);
+  }
+
+  /* Current location marker */
+  .gps-marker-pulse {
+    width: 16px;
+    height: 16px;
+    background: var(--success);
+    border: 3px solid white;
+    border-radius: 50%;
+    box-shadow: 0 0 0 0 rgba(63, 185, 80, 0.6);
+    animation: gps-pulse 2s infinite;
+  }
+  @keyframes gps-pulse {
+    0% { box-shadow: 0 0 0 0 rgba(63, 185, 80, 0.7); }
+    70% { box-shadow: 0 0 0 18px rgba(63, 185, 80, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(63, 185, 80, 0); }
+  }
+
+  /* Heater modal GPS button */
+  .gps-input-btn {
+    background: var(--success);
+    border: 1px solid var(--success);
+    color: white;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    margin-bottom: 12px;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    transition: all 0.15s;
+  }
+  .gps-input-btn:hover {
+    background: #2ea043;
+    border-color: #2ea043;
+  }
+  .gps-input-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  /* GPS action panel (sidebar) */
+  .gps-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 8px;
+  }
+  .gps-action {
+    background: var(--bg-2);
+    border: 1px solid var(--border);
+    color: var(--text-1);
+    padding: 10px 12px;
+    border-radius: 6px;
+    text-align: left;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    transition: all 0.15s;
+    width: 100%;
+  }
+  .gps-action:hover {
+    border-color: var(--accent);
+    background: var(--bg-3);
+  }
+  .gps-action.primary {
+    background: linear-gradient(135deg, var(--heater), #e85a25);
+    border-color: var(--heater);
+    color: white;
+  }
+  .gps-action.primary:hover {
+    background: linear-gradient(135deg, #ff7d4d, var(--heater));
+    box-shadow: 0 4px 12px rgba(255,107,53,0.3);
+  }
+  .gps-action.tracking {
+    background: var(--success);
+    border-color: var(--success);
+    color: white;
+  }
+  .gps-action .gps-icon {
+    font-size: 22px;
+    flex-shrink: 0;
+    line-height: 1;
+  }
+  .gps-action .gps-text {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.25;
+    flex: 1;
+  }
+  .gps-action .gps-text b {
+    font-size: 12.5px;
+    font-weight: 600;
+  }
+  .gps-action .gps-text small {
+    font-size: 10px;
+    opacity: 0.85;
+    margin-top: 2px;
+  }
+  .gps-action.locating {
+    animation: pulse 1.4s infinite;
+  }
+  .gps-info {
+    background: var(--bg-2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 10px;
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 4px 10px;
+    font-size: 11px;
+  }
+  .gps-info-label { color: var(--text-2); }
+  .gps-info-value {
+    color: var(--text-0);
+    font-family: "JetBrains Mono", monospace;
+    text-align: right;
+  }
+  .gps-info-value.good { color: var(--success); }
+  .gps-info-value.warn { color: var(--warn); }
+  .gps-info-value.bad { color: var(--danger); }
+
+  /* Modal */
+  .modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    backdrop-filter: blur(4px);
+    z-index: 5000;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  .modal-backdrop.show { display: flex; }
+  .modal {
+    background: var(--bg-1);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    max-width: 440px;
+    width: 100%;
+    box-shadow: var(--shadow-lg);
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+  .modal h3 {
+    font-size: 16px;
+    margin-bottom: 4px;
+    color: var(--text-0);
+  }
+  .modal .modal-sub {
+    font-size: 12px;
+    color: var(--text-2);
+    margin-bottom: 16px;
+  }
+  .modal .modal-sub .coord {
+    font-family: "JetBrains Mono", monospace;
+    color: var(--accent);
+  }
+  .modal-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 16px;
+  }
+  .modal-actions button {
+    flex: 1;
+    padding: 10px 16px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    border: 1px solid var(--border);
+    transition: all 0.15s;
+  }
+  .modal-actions .primary {
+    background: var(--accent-2);
+    color: white;
+    border-color: var(--accent-2);
+  }
+  .modal-actions .primary:hover {
+    background: var(--accent);
+    border-color: var(--accent);
+  }
+  .modal-actions .secondary {
+    background: var(--bg-2);
+    color: var(--text-1);
+  }
+  .modal-actions .secondary:hover {
+    background: var(--bg-3);
+  }
+  .modal-actions .danger {
+    background: transparent;
+    color: var(--danger);
+    border-color: var(--danger);
+    flex: 0;
+    padding: 10px 14px;
+  }
+  .modal-actions .danger:hover {
+    background: var(--danger);
+    color: white;
+  }
+
+  /* Compass preview */
+  .compass {
+    width: 100%;
+    height: 140px;
+    background: var(--bg-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    position: relative;
+    margin: 12px 0;
+    overflow: hidden;
+  }
+  .compass svg { width: 100%; height: 100%; }
+  .compass-info {
+    position: absolute;
+    top: 8px;
+    left: 12px;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11px;
+    color: var(--text-2);
+  }
+  .compass-info b { color: var(--accent); font-size: 14px; }
+
+  /* Heater popup label */
+  .heater-label {
+    background: rgba(255,107,53,0.95);
+    color: white;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 3px;
+    border: none;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+    font-family: "JetBrains Mono", monospace;
+  }
+
+  /* Drag handles */
+  .heater-handle-icon, .vertex-handle-icon {
+    background: transparent !important;
+    border: none !important;
+  }
+  .heater-handle {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 700;
+    cursor: move;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+    border: 3px solid white;
+    transition: transform 0.12s;
+  }
+  .heater-handle.start {
+    background: var(--heater);
+    color: white;
+  }
+  .heater-handle.end {
+    width: 18px;
+    height: 18px;
+    background: white;
+    border: 4px solid var(--heater);
+  }
+  .heater-handle:hover, .heater-handle:active {
+    transform: scale(1.2);
+  }
+  .vertex-handle {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    cursor: move;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.5);
+    border: 2px solid white;
+    transition: transform 0.12s;
+  }
+  .vertex-handle.wire {
+    background: var(--wire);
+  }
+  .vertex-handle.area {
+    background: var(--area);
+  }
+  .vertex-handle:hover, .vertex-handle:active {
+    transform: scale(1.4);
+  }
+
+  /* Custom marker icons */
+  .pin {
+    width: 24px;
+    height: 24px;
+    border-radius: 50% 50% 50% 0;
+    transform: rotate(-45deg);
+    border: 2px solid white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+  }
+  .pin span { transform: rotate(45deg); font-size: 12px; font-weight: 700; color: white; }
+  .pin-panel { background: var(--panel); }
+  .pin-power { background: var(--power); }
+  .pin-power span { color: #1a1a1a; }
+  .pin-memo { background: var(--memo); }
+  .pin-start { background: var(--heater); }
+
+  /* File input */
+  input[type="file"] { display: none; }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--border-strong); }
+
+  /* Toast */
+  .toast {
+    position: fixed;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%) translateY(100px);
+    background: var(--bg-1);
+    border: 1px solid var(--border);
+    color: var(--text-0);
+    padding: 12px 20px;
+    border-radius: 8px;
+    box-shadow: var(--shadow);
+    z-index: 9000;
+    font-size: 13px;
+    transition: transform 0.3s ease;
+    pointer-events: none;
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+  .toast.success { border-color: var(--success); }
+  .toast.error { border-color: var(--danger); }
+
+  /* Empty state */
+  .empty {
+    color: var(--text-2);
+    font-size: 12px;
+    text-align: center;
+    padding: 16px 8px;
+    font-style: italic;
+  }
+
+  /* Project name */
+  .project-name input {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-0);
+    padding: 6px 10px;
+    border-radius: 4px;
+    font-size: 13px;
+    font-weight: 500;
+    width: 200px;
+  }
+  .project-name input:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+
+  /* Responsive */
+  @media (max-width: 768px) {
+    #app { grid-template-columns: 1fr; grid-template-rows: 56px auto 1fr; }
+    aside { max-height: 40vh; }
+    header .sub, .project-name { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div id="app">
+  <header>
+    <div class="logo">
+      <span class="dot"></span>
+      <span>ロードヒーティング現地調査 ✏️</span>
+    </div>
+    <div class="sub">タッチペン対応版</div>
+
+    <div class="mode-toggle" id="mode-toggle">
+      <button class="mode-btn active" data-mode="touch" title="指・マウス操作モード">
+        <span>👆</span><span>指モード</span>
+      </button>
+      <button class="mode-btn" data-mode="pen" title="タッチペン操作モード（Apple Pencil等）">
+        <span>✏️</span><span>ペンモード</span>
+      </button>
+    </div>
+
+    <div class="project-name">
+      <input type="text" id="project-name" placeholder="案件名を入力..." />
+    </div>
+    <div class="actions">
+      <button id="btn-project-info" style="background: var(--accent-2); color: white; border-color: var(--accent-2);">📋 物件情報</button>
+      <button id="btn-undo" title="操作を取消（Ctrl+Z）" style="background: var(--bg-3);">↶ 戻す</button>
+      <button id="btn-save">保存</button>
+      <button id="btn-load">読込</button>
+      <button id="btn-export-json">JSON出力</button>
+      <button id="btn-export-kml">KML出力</button>
+      <button id="btn-clear" class="danger">全消去</button>
+      <input type="file" id="file-input" accept=".json" />
+    </div>
+  </header>
+
+  <aside>
+    <div class="panel">
+      <div class="panel-title">GPS現在地</div>
+      <div class="gps-actions">
+        <button class="gps-action primary" id="gps-set-as-start">
+          <span class="gps-icon">📍</span>
+          <span class="gps-text">
+            <b id="gps-action-label">現在地を起点にする</b>
+            <small id="gps-action-sub">選択中のツールで使用</small>
+          </span>
+        </button>
+        <button class="gps-action" id="gps-track-toggle">
+          <span class="gps-icon" id="gps-track-icon">⊙</span>
+          <span class="gps-text">
+            <b>追跡モード</b>
+            <small id="gps-track-status">OFF</small>
+          </span>
+        </button>
+      </div>
+      <div class="gps-info" id="gps-info">
+        <span class="gps-info-label">最終取得</span>
+        <span class="gps-info-value" id="gps-last-coord">―</span>
+        <span class="gps-info-label">精度</span>
+        <span class="gps-info-value" id="gps-last-acc">―</span>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">地図レイヤー</div>
+      <div class="layer-selector">
+        <button class="layer-btn active" data-layer="gsi-photo">国土地理院 写真</button>
+        <button class="layer-btn" data-layer="esri-sat">Esri 衛星</button>
+        <button class="layer-btn" data-layer="gsi-std">国土地理院 標準</button>
+        <button class="layer-btn" data-layer="osm">OpenStreetMap</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">集計 <span class="num" id="item-count">0</span></div>
+      <div class="stats">
+        <div class="stat">
+          <div class="label">ヒーター延長</div>
+          <div class="value"><span id="stat-heater-len">0</span><span class="unit">m</span></div>
+        </div>
+        <div class="stat">
+          <div class="label">ヒーター本数</div>
+          <div class="value"><span id="stat-heater-count">0</span><span class="unit">本</span></div>
+        </div>
+        <div class="stat">
+          <div class="label">制御盤</div>
+          <div class="value"><span id="stat-panel-count">0</span><span class="unit">台</span></div>
+        </div>
+        <div class="stat">
+          <div class="label">配線延長</div>
+          <div class="value"><span id="stat-wire-len">0</span><span class="unit">m</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel" style="flex: 1; min-height: 120px;">
+      <div class="panel-title">配置済み要素</div>
+      <div class="item-list" id="item-list"></div>
+    </div>
+
+    <div class="panel field-memo-panel">
+      <div class="panel-title">
+        現場メモ
+        <span class="num" id="memo-count">0</span>
+      </div>
+      <div class="memo-controls">
+        <button class="mic-btn" id="mic-btn" title="マイクをタップして音声入力開始">
+          <span class="mic-icon">🎤</span>
+          <span class="mic-label" id="mic-label">音声入力開始</span>
+        </button>
+        <div class="memo-status" id="memo-status"></div>
+      </div>
+      <textarea
+        class="memo-input"
+        id="memo-input"
+        rows="2"
+        placeholder="ここに音声/手入力でメモ。Enter または 追加ボタンで保存"></textarea>
+      <div class="memo-input-actions">
+        <button class="btn-add-memo" id="btn-add-memo">＋ メモを追加</button>
+        <button class="btn-clear-memo" id="btn-clear-memo" title="入力中のテキストを消去">クリア</button>
+      </div>
+      <div class="memo-list" id="memo-list"></div>
+    </div>
+  </aside>
+
+  <main>
+    <div id="map"></div>
+
+    <!-- Mode banner: shows what tool is active + hint -->
+    <div class="mode-banner nav" id="mode-banner">
+      <div class="mode-icon" id="mode-icon">👆</div>
+      <div class="mode-text">
+        <div class="mode-name" id="mode-name">ナビモード</div>
+        <div class="mode-hint" id="mode-hint">下のツールバーから操作を選択</div>
+      </div>
+    </div>
+
+    <!-- Action stack: PDF, etc -->
+    <div class="map-action-stack">
+      <button class="map-action" id="action-pdf" title="A3帳票PDFを出力">📄 PDF出力</button>
+    </div>
+
+    <!-- GPS button (existing) -->
+    <button class="gps-btn" id="gps-btn" title="現在地へ移動">📍</button>
+
+    <!-- Floating action toolbar -->
+    <div class="fab-toolbar" id="fab-toolbar">
+      <button class="fab-tool active" data-type="nav" title="ナビモード（地図クリックで何も配置しない）">
+        <span class="fab-kbd">0</span>
+        <span class="fab-icon">👆</span>
+        <span class="fab-label">ナビ</span>
+      </button>
+      <button class="fab-tool" data-type="heater" title="ヒーター線を配置">
+        <span class="fab-kbd">1</span>
+        <span class="fab-icon">━</span>
+        <span class="fab-label">ヒーター</span>
+      </button>
+      <button class="fab-tool" data-type="panel" title="制御盤を配置">
+        <span class="fab-kbd">2</span>
+        <span class="fab-icon">▣</span>
+        <span class="fab-label">制御盤</span>
+      </button>
+      <button class="fab-tool" data-type="power" title="受電点を配置">
+        <span class="fab-kbd">3</span>
+        <span class="fab-icon">⚡</span>
+        <span class="fab-label">受電点</span>
+      </button>
+      <button class="fab-tool" data-type="wire" title="配線ルートを描画">
+        <span class="fab-kbd">4</span>
+        <span class="fab-icon">⌇</span>
+        <span class="fab-label">配線</span>
+      </button>
+      <button class="fab-tool" data-type="area" title="施工範囲を描画">
+        <span class="fab-kbd">5</span>
+        <span class="fab-icon">▢</span>
+        <span class="fab-label">範囲</span>
+      </button>
+      <button class="fab-tool" data-type="memo" title="メモピンを配置">
+        <span class="fab-kbd">6</span>
+        <span class="fab-icon">📌</span>
+        <span class="fab-label">メモ</span>
+      </button>
+      <button class="fab-tool pen-only" data-type="sketch" title="ペンで手書き注釈（ペンモード専用）">
+        <span class="fab-kbd">7</span>
+        <span class="fab-icon">🖊️</span>
+        <span class="fab-label">スケッチ</span>
+      </button>
+    </div>
+
+    <!-- Sketch palette (visible when sketch tool is active) -->
+    <div class="sketch-palette" id="sketch-palette">
+      <div class="palette-section">
+        <div class="palette-label">色</div>
+        <div class="palette-colors">
+          <button class="palette-color active" data-color="#e74c3c" style="background:#e74c3c" title="赤"></button>
+          <button class="palette-color" data-color="#2ecc71" style="background:#2ecc71" title="緑"></button>
+          <button class="palette-color" data-color="#3498db" style="background:#3498db" title="青"></button>
+          <button class="palette-color" data-color="#f1c40f" style="background:#f1c40f" title="黄"></button>
+          <button class="palette-color" data-color="#1a1a1a" style="background:#1a1a1a; border-color:#666" title="黒"></button>
+        </div>
+      </div>
+      <div class="palette-section">
+        <div class="palette-label">太さ</div>
+        <div class="palette-widths">
+          <button class="palette-width" data-width="2" title="細"><span style="width:24px; height:2px; background:currentColor; display:block;"></span></button>
+          <button class="palette-width active" data-width="4" title="中"><span style="width:24px; height:4px; background:currentColor; display:block;"></span></button>
+          <button class="palette-width" data-width="8" title="太"><span style="width:24px; height:8px; background:currentColor; display:block;"></span></button>
+        </div>
+      </div>
+      <div class="palette-section">
+        <button class="palette-action" id="sketch-eraser" title="消しゴム（ペンタップしたストロークを削除）">🧽 消しゴム</button>
+        <button class="palette-action" id="sketch-clear-all" title="全スケッチ削除">全消去</button>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- Photo viewer (lightbox) -->
+<div class="photo-viewer" id="photo-viewer" onclick="this.classList.remove('show')">
+  <button class="close-btn" onclick="event.stopPropagation(); document.getElementById('photo-viewer').classList.remove('show')">✕</button>
+  <img id="photo-viewer-img" src="" alt="">
+</div>
+
+<!-- Heater Input Modal -->
+<div class="modal-backdrop" id="heater-modal">
+  <div class="modal">
+    <h3 id="heater-modal-title">ヒーター線の設定</h3>
+    <div class="modal-sub">起点座標: <span class="coord" id="heater-start-coord">―</span> <span id="heater-start-acc" style="color: var(--text-2); font-size: 11px;"></span></div>
+
+    <button class="gps-input-btn" id="heater-gps-recapture" type="button">
+      📍 現在地のGPSで起点を取得し直す
+    </button>
+
+    <div class="field">
+      <label>名称（任意）</label>
+      <input type="text" id="heater-name" placeholder="例：E区間-1, 松島側1本目" />
+    </div>
+
+    <div class="field-row">
+      <div class="field">
+        <label>長さ（m）<span style="color: var(--danger)"> *</span></label>
+        <input type="number" id="heater-length" min="1" max="2000" step="1" value="50" />
+      </div>
+      <div class="field">
+        <label>方位（°）<span style="color: var(--danger)"> *</span></label>
+        <input type="number" id="heater-azimuth" min="0" max="359" step="1" value="0" />
+      </div>
+    </div>
+
+    <div class="compass">
+      <div class="compass-info">
+        方位: <b id="compass-az">0°</b><br>
+        長さ: <b id="compass-len">50m</b>
+      </div>
+      <svg viewBox="0 0 200 140" preserveAspectRatio="xMidYMid meet">
+        <defs>
+          <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+            <polygon points="0 0, 10 3, 0 6" fill="#ff6b35" />
+          </marker>
+        </defs>
+        <!-- compass circle -->
+        <circle cx="100" cy="70" r="55" fill="none" stroke="#30363d" stroke-width="1" />
+        <circle cx="100" cy="70" r="40" fill="none" stroke="#30363d" stroke-width="0.5" stroke-dasharray="2 2" />
+        <!-- N E S W -->
+        <text x="100" y="13" fill="#58a6ff" font-size="10" text-anchor="middle" font-weight="700">N</text>
+        <text x="160" y="74" fill="#8b949e" font-size="10" text-anchor="middle">E</text>
+        <text x="100" y="135" fill="#8b949e" font-size="10" text-anchor="middle">S</text>
+        <text x="40" y="74" fill="#8b949e" font-size="10" text-anchor="middle">W</text>
+        <!-- center -->
+        <circle id="compass-origin" cx="100" cy="70" r="3" fill="#ff6b35" />
+        <!-- arrow -->
+        <line id="compass-arrow" x1="100" y1="70" x2="100" y2="15" stroke="#ff6b35" stroke-width="2.5" marker-end="url(#arrowhead)" />
+      </svg>
+    </div>
+
+    <div class="field-row">
+      <div class="field">
+        <label>出力 (W/m)</label>
+        <select id="heater-watts">
+          <option value="120">120 W/m</option>
+          <option value="160" selected>160 W/m</option>
+          <option value="200">200 W/m</option>
+          <option value="240">240 W/m</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>合計出力（自動）</label>
+        <input type="text" id="heater-total-w" readonly style="background: var(--bg-3); color: var(--accent);" />
+      </div>
+    </div>
+
+    <div class="field">
+      <label>備考（任意）</label>
+      <textarea id="heater-note" rows="2" placeholder="深さ、ピッチ、特記事項など"></textarea>
+    </div>
+
+    <div class="field">
+      <label>現地写真（任意）</label>
+      <div class="photo-uploader">
+        <div class="photo-buttons">
+          <label class="photo-btn">
+            📷 カメラで撮影
+            <input type="file" accept="image/*" capture="environment" id="heater-photo-cam" hidden>
+          </label>
+          <label class="photo-btn">
+            🖼️ アルバムから
+            <input type="file" accept="image/*" id="heater-photo-lib" hidden>
+          </label>
+        </div>
+        <div class="photo-thumbs" id="heater-photos"></div>
+      </div>
+    </div>
+
+    <div class="duplicate-section" id="heater-duplicate-section" style="display:none;">
+      <div class="sec-title">📋 このヒーターを平行複写</div>
+      <div class="field-row">
+        <div class="field" style="margin: 0;">
+          <label>オフセット（m）</label>
+          <input type="number" id="heater-dup-offset" min="0.1" max="50" step="0.1" value="1.0">
+        </div>
+        <div class="field" style="margin: 0;">
+          <label>方向（線の進行方向から）</label>
+          <div class="dir-toggle">
+            <button type="button" id="heater-dup-left" data-dir="-90">← 左</button>
+            <button type="button" class="active" id="heater-dup-right" data-dir="90">右 →</button>
+          </div>
+        </div>
+      </div>
+      <button type="button" class="primary" id="heater-dup-do" style="width:100%; margin-top:10px; padding:8px; border-radius:6px; background: var(--heater); color: white; border: none; font-weight: 500; cursor: pointer; font-size: 12px;">
+        📋 同じ長さ・方位で複写する
+      </button>
+    </div>
+
+    <div class="modal-actions">
+      <button class="danger" id="heater-delete" style="display:none;">削除</button>
+      <button class="secondary" id="heater-cancel">キャンセル</button>
+      <button class="primary" id="heater-save">確定</button>
+    </div>
+  </div>
+</div>
+
+<!-- Generic Marker Modal (panel/power/memo) -->
+<div class="modal-backdrop" id="marker-modal">
+  <div class="modal">
+    <h3 id="marker-modal-title">設定</h3>
+    <div class="modal-sub">座標: <span class="coord" id="marker-coord">―</span></div>
+    <div class="field">
+      <label>名称</label>
+      <input type="text" id="marker-name" />
+    </div>
+    <div class="field" id="marker-spec-field">
+      <label id="marker-spec-label">仕様</label>
+      <input type="text" id="marker-spec" />
+    </div>
+    <div class="field">
+      <label>備考</label>
+      <textarea id="marker-note" rows="2"></textarea>
+    </div>
+    <div class="field">
+      <label>現地写真（任意）</label>
+      <div class="photo-uploader">
+        <div class="photo-buttons">
+          <label class="photo-btn">
+            📷 カメラで撮影
+            <input type="file" accept="image/*" capture="environment" id="marker-photo-cam" hidden>
+          </label>
+          <label class="photo-btn">
+            🖼️ アルバムから
+            <input type="file" accept="image/*" id="marker-photo-lib" hidden>
+          </label>
+        </div>
+        <div class="photo-thumbs" id="marker-photos"></div>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="danger" id="marker-delete" style="display:none;">削除</button>
+      <button class="secondary" id="marker-cancel">キャンセル</button>
+      <button class="primary" id="marker-save">確定</button>
+    </div>
+  </div>
+</div>
+
+<!-- Project Info Modal -->
+<div class="modal-backdrop" id="project-info-modal">
+  <div class="modal" style="max-width: 720px;">
+    <h3>📋 物件情報</h3>
+    <div class="modal-sub">案件の基本情報を入力してください。PDF報告書の表紙とヘッダーに反映されます。</div>
+
+    <div class="pi-section">
+      <div class="pi-section-title">基本情報</div>
+      <div class="pi-grid">
+        <div class="field"><label>案件名</label><input type="text" id="pi-project-name" placeholder="例：松島町45号 ロードヒーティング補修工事"></div>
+        <div class="field"><label>案件番号</label><input type="text" id="pi-project-no" placeholder="例：R7-T-001"></div>
+        <div class="field">
+          <label>発注者</label>
+          <select id="pi-client">
+            <option value="">― 選択 ―</option>
+            <option>国土交通省 東北地方整備局</option>
+            <option>国土交通省 関東地方整備局</option>
+            <option>国土交通省 中部地方整備局</option>
+            <option>国土交通省 北陸地方整備局</option>
+            <option>国土交通省 近畿地方整備局</option>
+            <option>国土交通省 北海道開発局</option>
+            <option>NEXCO東日本</option>
+            <option>NEXCO中日本</option>
+            <option>NEXCO西日本</option>
+            <option>首都高速道路</option>
+            <option>阪神高速道路</option>
+            <option>本州四国連絡高速道路</option>
+            <option>都道府県</option>
+            <option>市町村</option>
+            <option>その他</option>
+          </select>
+        </div>
+        <div class="field"><label>発注者（詳細・自由記入）</label><input type="text" id="pi-client-detail" placeholder="例：仙台河川国道事務所"></div>
+        <div class="field" style="grid-column: 1 / -1;"><label>工事場所（住所）</label><input type="text" id="pi-location" placeholder="例：宮城県宮城郡松島町手樽字○○○"></div>
+        <div class="field"><label>路線名</label><input type="text" id="pi-route" placeholder="例：国道45号"></div>
+        <div class="field"><label>KP・キロポスト</label><input type="text" id="pi-kp" placeholder="例：KP123.4 〜 KP123.8"></div>
+      </div>
+    </div>
+
+    <div class="pi-section">
+      <div class="pi-section-title">工事情報</div>
+      <div class="pi-grid">
+        <div class="field">
+          <label>工事種別</label>
+          <select id="pi-work-type">
+            <option value="">― 選択 ―</option>
+            <option>新設</option>
+            <option>改修</option>
+            <option>補修</option>
+            <option>調査のみ</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>道路種別</label>
+          <select id="pi-road-type">
+            <option value="">― 選択 ―</option>
+            <option>高速自動車国道</option>
+            <option>一般国道（直轄）</option>
+            <option>一般国道（指定区間外）</option>
+            <option>都道府県道</option>
+            <option>市町村道</option>
+            <option>その他</option>
+          </select>
+        </div>
+        <div class="field"><label>施工予定面積（㎡）</label><input type="number" id="pi-area" step="1" placeholder="例：450"></div>
+        <div class="field"><label>施工延長（m）</label><input type="number" id="pi-length" step="1" placeholder="例：120"></div>
+      </div>
+    </div>
+
+    <div class="pi-section">
+      <div class="pi-section-title">電源条件</div>
+      <div class="pi-grid">
+        <div class="field">
+          <label>受電方式</label>
+          <select id="pi-power-type">
+            <option value="">― 選択 ―</option>
+            <option>単相2線100V</option>
+            <option>単相3線100/200V</option>
+            <option>三相3線200V</option>
+            <option>三相4線240/415V</option>
+            <option>高圧6.6kV</option>
+          </select>
+        </div>
+        <div class="field"><label>容量（kW / kVA）</label><input type="text" id="pi-power-capacity" placeholder="例：50kW"></div>
+        <div class="field"><label>既設インフラ</label><input type="text" id="pi-existing" placeholder="例：既設キュービクルあり"></div>
+        <div class="field"><label>引込予定電線</label><input type="text" id="pi-cable" placeholder="例：CV 22sq×3心"></div>
+      </div>
+    </div>
+
+    <div class="pi-section">
+      <div class="pi-section-title">調査・担当</div>
+      <div class="pi-grid">
+        <div class="field"><label>調査日</label><input type="date" id="pi-survey-date"></div>
+        <div class="field"><label>調査者氏名</label><input type="text" id="pi-surveyor" placeholder="例：太田 博"></div>
+        <div class="field"><label>作成者</label><input type="text" id="pi-author" placeholder="例：株式会社太陽 TAIYOSHEET事業部"></div>
+        <div class="field"><label>提出先</label><input type="text" id="pi-submit-to" placeholder="例：仙台河川国道事務所 工務課"></div>
+      </div>
+    </div>
+
+    <div class="pi-section">
+      <div class="pi-section-title">特記事項</div>
+      <div class="field" style="margin: 0;">
+        <textarea id="pi-notes" rows="3" placeholder="現地条件、安全注意事項、関連工事との取合いなど"></textarea>
+      </div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="secondary" id="pi-cancel">キャンセル</button>
+      <button class="primary" id="pi-save">保存</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+
+<script>
+'use strict';
+
+// ============================================================
+// Constants
+// ============================================================
+const STORAGE_KEY = 'rh-survey-data';
+const DEFAULT_CENTER = [38.3622, 141.0686]; // 松島町手樽
+const DEFAULT_ZOOM = 17;
+
+const TYPE_LABELS = {
+  heater: 'ヒーター',
+  panel: '制御盤',
+  power: '受電点',
+  wire: '配線ルート',
+  area: '施工範囲',
+  memo: 'メモ'
+};
+
+const COLORS = {
+  heater: '#ff6b35',
+  panel: '#4ea8de',
+  power: '#ffd23f',
+  wire: '#e9ecef',
+  area: '#06d6a0',
+  memo: '#c77dff'
+};
+
+// ============================================================
+// State
+// ============================================================
+const state = {
+  projectName: '',
+  projectInfo: {}, // detailed project metadata
+  fieldMemos: [], // [{id, ts, text, isVoice}]
+  items: [], // {id, type, ...}
+  sketches: [], // [{id, color, width, points: [[lat,lng],...], createdAt}]
+  activeTool: 'nav',
+  currentLayer: 'gsi-photo',
+  inputMode: 'touch', // 'touch' | 'pen'
+  sketchColor: '#e74c3c',
+  sketchWidth: 4,
+  eraserMode: false,
+  undoStack: [], // {type, payload} for undo
+  // For heater drawing
+  heaterStart: null,
+  editingItemId: null,
+  // For wire/area drawing
+  drawingPoints: [],
+  drawingLayer: null,
+};
+
+// ============================================================
+// Map setup
+// ============================================================
+const layerDefs = {
+  'gsi-photo': {
+    url: 'https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg',
+    attribution: '&copy; 国土地理院 シームレス空中写真',
+    maxNativeZoom: 18,
+    maxZoom: 22
+  },
+  'esri-sat': {
+    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    attribution: 'Tiles &copy; Esri',
+    maxNativeZoom: 19,
+    maxZoom: 22
+  },
+  'gsi-std': {
+    url: 'https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png',
+    attribution: '&copy; 国土地理院',
+    maxNativeZoom: 18,
+    maxZoom: 22
+  },
+  'osm': {
+    url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    attribution: '&copy; OpenStreetMap contributors',
+    maxNativeZoom: 19,
+    maxZoom: 22
+  }
+};
+
+const map = L.map('map', {
+  zoomControl: true,
+  attributionControl: true,
+  maxZoom: 22
+}).setView(DEFAULT_CENTER, DEFAULT_ZOOM);
+
+let activeTileLayer = null;
+
+function setLayer(key) {
+  if (activeTileLayer) map.removeLayer(activeTileLayer);
+  const def = layerDefs[key];
+  activeTileLayer = L.tileLayer(def.url, {
+    attribution: def.attribution,
+    maxNativeZoom: def.maxNativeZoom,
+    maxZoom: def.maxZoom
+  }).addTo(map);
+  state.currentLayer = key;
+  document.querySelectorAll('.layer-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.layer === key);
+  });
+}
+setLayer('gsi-photo');
+
+// ============================================================
+// Geo math
+// ============================================================
+function destinationPoint(lat, lng, bearingDeg, distanceM) {
+  const R = 6378137; // WGS84 equatorial radius (meters)
+  const δ = distanceM / R;
+  const θ = bearingDeg * Math.PI / 180;
+  const φ1 = lat * Math.PI / 180;
+  const λ1 = lng * Math.PI / 180;
+
+  const φ2 = Math.asin(
+    Math.sin(φ1) * Math.cos(δ) +
+    Math.cos(φ1) * Math.sin(δ) * Math.cos(θ)
+  );
+  const λ2 = λ1 + Math.atan2(
+    Math.sin(θ) * Math.sin(δ) * Math.cos(φ1),
+    Math.cos(δ) - Math.sin(φ1) * Math.sin(φ2)
+  );
+
+  return [φ2 * 180 / Math.PI, λ2 * 180 / Math.PI];
+}
+
+function distance(latlng1, latlng2) {
+  return map.distance(latlng1, latlng2);
+}
+
+function bearing(p1, p2) {
+  const lat1 = p1[0] * Math.PI / 180;
+  const lat2 = p2[0] * Math.PI / 180;
+  const dLng = (p2[1] - p1[1]) * Math.PI / 180;
+  const y = Math.sin(dLng) * Math.cos(lat2);
+  const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLng);
+  return ((Math.atan2(y, x) * 180 / Math.PI) + 360) % 360;
+}
+
+function totalLength(latlngs) {
+  let sum = 0;
+  for (let i = 1; i < latlngs.length; i++) {
+    sum += distance(latlngs[i-1], latlngs[i]);
+  }
+  return sum;
+}
+
+// ============================================================
+// Item management
+// ============================================================
+const layerGroup = L.layerGroup().addTo(map);
+const itemLayers = {}; // id -> Leaflet layer
+
+function genId() {
+  return 'item-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7);
+}
+
+function addItem(item) {
+  if (!item.id) item.id = genId();
+  state.items.push(item);
+  renderItem(item);
+  updateUI();
+}
+
+function updateItem(item) {
+  const idx = state.items.findIndex(x => x.id === item.id);
+  if (idx === -1) return;
+  state.items[idx] = item;
+  // Remove old layer and re-render
+  if (itemLayers[item.id]) {
+    layerGroup.removeLayer(itemLayers[item.id]);
+    delete itemLayers[item.id];
+  }
+  renderItem(item);
+  updateUI();
+}
+
+function deleteItem(id) {
+  state.items = state.items.filter(x => x.id !== id);
+  if (itemLayers[id]) {
+    layerGroup.removeLayer(itemLayers[id]);
+    delete itemLayers[id];
+  }
+  updateUI();
+}
+
+function renderItem(item) {
+  let layer;
+  switch (item.type) {
+    case 'heater':
+      layer = renderHeater(item);
+      break;
+    case 'panel':
+      layer = renderPin(item, 'pin-panel', '盤');
+      break;
+    case 'power':
+      layer = renderPin(item, 'pin-power', '電');
+      break;
+    case 'memo':
+      layer = renderPin(item, 'pin-memo', '📌');
+      break;
+    case 'wire':
+      layer = renderWire(item);
+      break;
+    case 'area':
+      layer = renderArea(item);
+      break;
+  }
+  if (layer) {
+    itemLayers[item.id] = layer;
+    layer.addTo(layerGroup);
+  }
+}
+
+function renderHeater(item) {
+  const line = L.polyline([item.start, item.end], {
+    color: COLORS.heater,
+    weight: 5,
+    opacity: 0.9,
+    lineCap: 'round'
+  });
+
+  // Start handle (drag → translate whole line, keeping length & azimuth)
+  const startMarker = L.marker(item.start, {
+    icon: L.divIcon({
+      className: 'heater-handle-icon',
+      html: '<div class="heater-handle start" title="ドラッグで線全体を平行移動">起</div>',
+      iconSize: [24, 24],
+      iconAnchor: [12, 12]
+    }),
+    draggable: true,
+    autoPan: true
+  });
+
+  // End handle (drag → change length & azimuth, start fixed)
+  const endMarker = L.marker(item.end, {
+    icon: L.divIcon({
+      className: 'heater-handle-icon',
+      html: '<div class="heater-handle end" title="ドラッグで長さ・方位を変更"></div>',
+      iconSize: [18, 18],
+      iconAnchor: [9, 9]
+    }),
+    draggable: true,
+    autoPan: true
+  });
+
+  // Midpoint label
+  const midLat = (item.start[0] + item.end[0]) / 2;
+  const midLng = (item.start[1] + item.end[1]) / 2;
+  const label = L.marker([midLat, midLng], {
+    icon: L.divIcon({
+      className: 'heater-label',
+      html: `${item.length}m / ${item.azimuth}°`,
+      iconSize: null,
+      iconAnchor: [0, 0]
+    }),
+    interactive: false
+  });
+
+  function setLabel(start, end, len, az) {
+    label.setLatLng([(start[0]+end[0])/2, (start[1]+end[1])/2]);
+    label.setIcon(L.divIcon({
+      className: 'heater-label',
+      html: `${Math.round(len)}m / ${Math.round(az)}°`,
+      iconSize: null,
+      iconAnchor: [0, 0]
+    }));
+  }
+
+  // ---- Start drag: translate (preserve length & azimuth) ----
+  startMarker.on('drag', (e) => {
+    const ll = e.target.getLatLng();
+    const newStart = [ll.lat, ll.lng];
+    const newEnd = destinationPoint(ll.lat, ll.lng, item.azimuth, item.length);
+    line.setLatLngs([newStart, newEnd]);
+    endMarker.setLatLng(newEnd);
+    setLabel(newStart, newEnd, item.length, item.azimuth);
+  });
+  startMarker.on('dragend', (e) => {
+    const ll = e.target.getLatLng();
+    item.start = [ll.lat, ll.lng];
+    item.end = destinationPoint(ll.lat, ll.lng, item.azimuth, item.length);
+    saveToStorage();
+    updateUI();
+    toast(`「${item.name}」を移動しました`, 'success');
+  });
+
+  // ---- End drag: recalc length & azimuth (start fixed) ----
+  endMarker.on('drag', (e) => {
+    const ll = e.target.getLatLng();
+    const newEnd = [ll.lat, ll.lng];
+    line.setLatLngs([item.start, newEnd]);
+    const len = distance(item.start, newEnd);
+    const az = bearing(item.start, newEnd);
+    setLabel(item.start, newEnd, len, az);
+  });
+  endMarker.on('dragend', (e) => {
+    const ll = e.target.getLatLng();
+    item.end = [ll.lat, ll.lng];
+    item.length = Math.round(distance(item.start, item.end));
+    item.azimuth = Math.round(bearing(item.start, item.end));
+    item.totalW = item.length * item.watts;
+    saveToStorage();
+    updateUI();
+    toast(`「${item.name}」: ${item.length}m / ${item.azimuth}°`, 'success');
+  });
+
+  const popup = `
+    <div style="font-family: 'Noto Sans JP', sans-serif; min-width: 180px;">
+      <div style="font-weight: 700; color: ${COLORS.heater}; margin-bottom: 4px;">
+        🔥 ${escapeHtml(item.name || 'ヒーター')}
+      </div>
+      <div style="font-size: 12px; color: #555;">
+        長さ: <b>${item.length}m</b><br>
+        方位: <b>${item.azimuth}°</b><br>
+        出力: <b>${item.watts}W/m</b> × ${item.length}m = <b>${item.totalW}W</b><br>
+        ${item.note ? `<br>${escapeHtml(item.note)}` : ''}
+      </div>
+      <div style="font-size: 10px; color: #999; margin-top: 6px; padding-top: 6px; border-top: 1px solid #eee;">
+        起点をドラッグ：平行移動<br>
+        終点をドラッグ：長さ・方位変更<br>
+        線をクリック：詳細編集
+      </div>
+    </div>
+  `;
+  line.bindPopup(popup);
+  line.on('click', (e) => {
+    L.DomEvent.stopPropagation(e);
+    openHeaterModal(item);
+  });
+
+  return L.featureGroup([line, label, startMarker, endMarker]);
+}
+
+function renderPin(item, cls, label) {
+  const icon = L.divIcon({
+    className: 'custom-pin',
+    html: `<div class="pin ${cls}"><span>${label}</span></div>`,
+    iconSize: [24, 32],
+    iconAnchor: [12, 28]
+  });
+  const marker = L.marker(item.position, { icon, draggable: true, autoPan: true });
+  marker.on('dragend', (e) => {
+    const ll = e.target.getLatLng();
+    item.position = [ll.lat, ll.lng];
+    saveToStorage();
+    toast(`「${item.name || TYPE_LABELS[item.type]}」を移動しました`, 'success');
+  });
+  const popupHtml = `
+    <div style="font-family: 'Noto Sans JP', sans-serif; min-width: 160px;">
+      <div style="font-weight: 700; margin-bottom: 4px;">${escapeHtml(item.name || TYPE_LABELS[item.type])}</div>
+      ${item.spec ? `<div style="font-size: 12px;">仕様: ${escapeHtml(item.spec)}</div>` : ''}
+      ${item.note ? `<div style="font-size: 12px; color: #666; margin-top: 4px;">${escapeHtml(item.note)}</div>` : ''}
+      <div style="font-size: 10px; color: #999; margin-top: 6px; padding-top: 6px; border-top: 1px solid #eee;">
+        ドラッグで移動 / クリックで編集
+      </div>
+    </div>
+  `;
+  marker.bindPopup(popupHtml);
+  marker.on('click', (e) => {
+    L.DomEvent.stopPropagation(e);
+    openMarkerModal(item);
+  });
+  return marker;
+}
+
+function renderWire(item) {
+  const line = L.polyline(item.path, {
+    color: COLORS.wire,
+    weight: 3,
+    opacity: 0.85,
+    dashArray: '8 4'
+  });
+  const len = totalLength(item.path).toFixed(1);
+  line.bindPopup(`
+    <div style="font-family: 'Noto Sans JP', sans-serif;">
+      <div style="font-weight: 700;">⌇ ${escapeHtml(item.name || '配線ルート')}</div>
+      <div style="font-size: 12px;">延長: <b>${len}m</b></div>
+      <div style="font-size: 10px; color: #999; margin-top: 6px;">頂点をドラッグで形状変更</div>
+    </div>
+  `);
+  // Vertex handles
+  const handles = item.path.map((pt, idx) => makeVertexHandle(pt, 'wire', idx, item, line));
+  return L.featureGroup([line, ...handles]);
+}
+
+function renderArea(item) {
+  const poly = L.polygon(item.path, {
+    color: COLORS.area,
+    fillColor: COLORS.area,
+    fillOpacity: 0.2,
+    weight: 2
+  });
+  poly.bindPopup(`
+    <div style="font-family: 'Noto Sans JP', sans-serif;">
+      <div style="font-weight: 700;">▢ ${escapeHtml(item.name || '施工範囲')}</div>
+      <div style="font-size: 10px; color: #999; margin-top: 6px;">頂点をドラッグで形状変更</div>
+    </div>
+  `);
+  const handles = item.path.map((pt, idx) => makeVertexHandle(pt, 'area', idx, item, poly));
+  return L.featureGroup([poly, ...handles]);
+}
+
+function makeVertexHandle(point, kind, idx, item, shapeLayer) {
+  const m = L.marker(point, {
+    icon: L.divIcon({
+      className: 'vertex-handle-icon',
+      html: `<div class="vertex-handle ${kind}"></div>`,
+      iconSize: [14, 14],
+      iconAnchor: [7, 7]
+    }),
+    draggable: true,
+    autoPan: true
+  });
+  m.on('drag', (e) => {
+    const ll = e.target.getLatLng();
+    const coords = shapeLayer.getLatLngs().map(c => Array.isArray(c) ? c.slice() : c);
+    if (kind === 'area') {
+      // polygon.getLatLngs() returns nested array
+      coords[0][idx] = ll;
+      shapeLayer.setLatLngs(coords);
+    } else {
+      coords[idx] = ll;
+      shapeLayer.setLatLngs(coords);
+    }
+  });
+  m.on('dragend', (e) => {
+    const ll = e.target.getLatLng();
+    item.path[idx] = [ll.lat, ll.lng];
+    saveToStorage();
+    updateUI();
+    toast(`「${item.name || TYPE_LABELS[item.type]}」の形状を更新しました`, 'success');
+  });
+  return m;
+}
+
+function escapeHtml(s) {
+  if (!s) return '';
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// ============================================================
+// Tool selection (floating toolbar)
+// ============================================================
+document.querySelectorAll('.fab-tool').forEach(btn => {
+  btn.addEventListener('click', () => {
+    state.activeTool = btn.dataset.type;
+    document.querySelectorAll('.fab-tool').forEach(b => b.classList.toggle('active', b === btn));
+    cancelDrawing();
+    showToolHint();
+  });
+});
+
+document.querySelectorAll('.layer-btn').forEach(btn => {
+  btn.addEventListener('click', () => setLayer(btn.dataset.layer));
+});
+
+const TOOL_MODES = {
+  nav: { icon: '👆', name: 'ナビモード', hint: '地図をパン・ズーム。配置するには下のツールを選択' },
+  heater: { icon: '━', name: 'ヒーター線', hint: '地図をタップして起点を指定 → 長さと方位を入力' },
+  panel: { icon: '▣', name: '制御盤', hint: '地図をタップして制御盤を配置' },
+  power: { icon: '⚡', name: '受電点', hint: '地図をタップして受電点を配置（引込点・既存分電盤など）' },
+  wire: { icon: '⌇', name: '配線ルート', hint: '経由点を順にタップ → ダブルタップで確定' },
+  area: { icon: '▢', name: '施工範囲', hint: '頂点を順にタップ（3点以上） → ダブルタップで閉じる' },
+  memo: { icon: '📌', name: 'メモピン', hint: '地図をタップしてメモを配置' }
+};
+
+function showToolHint() {
+  const m = TOOL_MODES[state.activeTool] || TOOL_MODES.nav;
+  const banner = document.getElementById('mode-banner');
+  document.getElementById('mode-icon').textContent = m.icon;
+  document.getElementById('mode-name').textContent = m.name;
+  document.getElementById('mode-hint').textContent = m.hint;
+  // Update banner color class
+  banner.className = 'mode-banner ' + state.activeTool;
+}
+showToolHint();
+
+function cancelDrawing() {
+  state.heaterStart = null;
+  state.drawingPoints = [];
+  if (state.drawingLayer) {
+    map.removeLayer(state.drawingLayer);
+    state.drawingLayer = null;
+  }
+  if (state.startMarker) {
+    map.removeLayer(state.startMarker);
+    state.startMarker = null;
+  }
+}
+
+// ============================================================
+// Map click handling
+// ============================================================
+map.on('click', (e) => {
+  const { lat, lng } = e.latlng;
+  switch (state.activeTool) {
+    case 'heater':
+      handleHeaterClick(lat, lng);
+      break;
+    case 'panel':
+      openMarkerModal({ id: null, type: 'panel', position: [lat, lng] });
+      break;
+    case 'power':
+      openMarkerModal({ id: null, type: 'power', position: [lat, lng] });
+      break;
+    case 'memo':
+      openMarkerModal({ id: null, type: 'memo', position: [lat, lng] });
+      break;
+    case 'wire':
+    case 'area':
+      handlePathClick(lat, lng);
+      break;
+    case 'nav':
+    default:
+      // nav mode does nothing on map click
+      break;
+  }
+});
+
+map.on('dblclick', (e) => {
+  if (state.activeTool === 'wire' || state.activeTool === 'area') {
+    finishPathDrawing();
+    L.DomEvent.stopPropagation(e);
+  }
+});
+
+// Enable dblclick zoom only in nav mode (so drawing tools can use dblclick to finish)
+function syncDblClickZoom() {
+  if (state.activeTool === 'nav') {
+    map.doubleClickZoom.enable();
+  } else {
+    map.doubleClickZoom.disable();
+  }
+}
+syncDblClickZoom();
+document.querySelectorAll('.fab-tool').forEach(btn => {
+  btn.addEventListener('click', () => setTimeout(syncDblClickZoom, 0));
+});
+
+function handleHeaterClick(lat, lng) {
+  state.heaterStart = [lat, lng];
+  // Show start marker temporarily
+  if (state.startMarker) map.removeLayer(state.startMarker);
+  state.startMarker = L.marker([lat, lng], {
+    icon: L.divIcon({
+      className: 'custom-pin',
+      html: '<div class="pin pin-start"><span>起</span></div>',
+      iconSize: [24, 32],
+      iconAnchor: [12, 28]
+    })
+  }).addTo(map);
+  openHeaterModal(null);
+}
+
+function handlePathClick(lat, lng) {
+  state.drawingPoints.push([lat, lng]);
+  if (state.drawingLayer) map.removeLayer(state.drawingLayer);
+  if (state.activeTool === 'wire') {
+    state.drawingLayer = L.polyline(state.drawingPoints, {
+      color: COLORS.wire,
+      weight: 3,
+      dashArray: '8 4',
+      opacity: 0.7
+    }).addTo(map);
+    const len = totalLength(state.drawingPoints).toFixed(1);
+    showStatus('STEP', `配線ルート描画中: ${state.drawingPoints.length}点 / ${len}m （ダブルクリックで確定）`);
+  } else if (state.activeTool === 'area') {
+    if (state.drawingPoints.length >= 3) {
+      state.drawingLayer = L.polygon(state.drawingPoints, {
+        color: COLORS.area,
+        fillColor: COLORS.area,
+        fillOpacity: 0.15,
+        weight: 2,
+        dashArray: '6 3'
+      }).addTo(map);
+    } else {
+      state.drawingLayer = L.polyline(state.drawingPoints, {
+        color: COLORS.area,
+        weight: 2,
+        dashArray: '6 3'
+      }).addTo(map);
+    }
+    showStatus('STEP', `施工範囲描画中: ${state.drawingPoints.length}点 （3点以上、ダブルクリックで閉じる）`);
+  }
+}
+
+function finishPathDrawing() {
+  if (state.activeTool === 'wire' && state.drawingPoints.length >= 2) {
+    const name = prompt('配線ルートの名称（任意）', '配線-' + (state.items.filter(i=>i.type==='wire').length + 1));
+    if (name !== null) {
+      addItem({ type: 'wire', name: name || '配線ルート', path: state.drawingPoints });
+      toast(`配線ルート（${totalLength(state.drawingPoints).toFixed(1)}m）を追加しました`, 'success');
+    }
+  } else if (state.activeTool === 'area' && state.drawingPoints.length >= 3) {
+    const name = prompt('施工範囲の名称（任意）', '施工範囲-' + (state.items.filter(i=>i.type==='area').length + 1));
+    if (name !== null) {
+      addItem({ type: 'area', name: name || '施工範囲', path: state.drawingPoints });
+      toast('施工範囲を追加しました', 'success');
+    }
+  }
+  cancelDrawing();
+  showToolHint();
+}
+
+function showStatus(step, html) {
+  // Use the mode-hint area to show drawing progress
+  const hint = document.getElementById('mode-hint');
+  // Strip HTML tags from input
+  const text = html.replace(/<[^>]+>/g, '');
+  hint.textContent = text;
+}
+
+// ============================================================
+// Heater modal
+// ============================================================
+const heaterModal = document.getElementById('heater-modal');
+const elHeaterName = document.getElementById('heater-name');
+const elHeaterLength = document.getElementById('heater-length');
+const elHeaterAzimuth = document.getElementById('heater-azimuth');
+const elHeaterWatts = document.getElementById('heater-watts');
+const elHeaterTotalW = document.getElementById('heater-total-w');
+const elHeaterNote = document.getElementById('heater-note');
+const elHeaterStartCoord = document.getElementById('heater-start-coord');
+const elHeaterDelete = document.getElementById('heater-delete');
+const elHeaterTitle = document.getElementById('heater-modal-title');
+
+function openHeaterModal(existing) {
+  if (existing) {
+    state.editingItemId = existing.id;
+    state.heaterStart = existing.start;
+    elHeaterTitle.textContent = 'ヒーター線の編集';
+    elHeaterName.value = existing.name || '';
+    elHeaterLength.value = existing.length;
+    elHeaterAzimuth.value = existing.azimuth;
+    elHeaterWatts.value = existing.watts;
+    elHeaterNote.value = existing.note || '';
+    elHeaterDelete.style.display = '';
+    heaterPhotos = (existing.photos || []).slice();
+    // Show duplicate section only for existing heaters
+    document.getElementById('heater-duplicate-section').style.display = '';
+  } else {
+    state.editingItemId = null;
+    elHeaterTitle.textContent = 'ヒーター線の設定';
+    elHeaterName.value = 'ヒーター-' + (state.items.filter(i=>i.type==='heater').length + 1);
+    elHeaterLength.value = 50;
+    elHeaterAzimuth.value = 0;
+    elHeaterWatts.value = 160;
+    elHeaterNote.value = '';
+    elHeaterDelete.style.display = 'none';
+    heaterPhotos = [];
+    document.getElementById('heater-duplicate-section').style.display = 'none';
+  }
+  refreshHeaterPhotoThumbs();
+  elHeaterStartCoord.textContent = state.heaterStart
+    ? `${state.heaterStart[0].toFixed(6)}, ${state.heaterStart[1].toFixed(6)}`
+    : '―';
+  // Show accuracy if obtained from GPS
+  const accSpan = document.getElementById('heater-start-acc');
+  if (state.heaterStartAccuracy != null) {
+    accSpan.textContent = `(精度 ${formatAcc(state.heaterStartAccuracy)})`;
+    accSpan.style.color = state.heaterStartAccuracy <= 5 ? 'var(--success)' :
+                         state.heaterStartAccuracy <= 15 ? 'var(--warn)' : 'var(--danger)';
+  } else {
+    accSpan.textContent = '';
+  }
+  updateCompass();
+  updateTotalW();
+  heaterModal.classList.add('show');
+  setTimeout(() => elHeaterLength.focus(), 50);
+}
+
+function closeHeaterModal() {
+  heaterModal.classList.remove('show');
+  if (state.startMarker) {
+    map.removeLayer(state.startMarker);
+    state.startMarker = null;
+  }
+  state.heaterStart = null;
+  state.heaterStartAccuracy = null;
+  state.editingItemId = null;
+}
+
+function updateCompass() {
+  const az = parseFloat(elHeaterAzimuth.value) || 0;
+  const len = parseFloat(elHeaterLength.value) || 0;
+  document.getElementById('compass-az').textContent = az + '°';
+  document.getElementById('compass-len').textContent = len + 'm';
+  // Rotate arrow: 0° points up (north), positive clockwise
+  const arrow = document.getElementById('compass-arrow');
+  // SVG: x1,y1=100,70 (origin), x2,y2 = 100+sin(θ)*55, 70-cos(θ)*55
+  const θ = az * Math.PI / 180;
+  const x2 = 100 + Math.sin(θ) * 55;
+  const y2 = 70 - Math.cos(θ) * 55;
+  arrow.setAttribute('x2', x2.toFixed(2));
+  arrow.setAttribute('y2', y2.toFixed(2));
+}
+
+function updateTotalW() {
+  const len = parseFloat(elHeaterLength.value) || 0;
+  const w = parseFloat(elHeaterWatts.value) || 0;
+  const total = len * w;
+  elHeaterTotalW.value = `${total.toLocaleString()} W (${(total/1000).toFixed(2)} kW)`;
+}
+
+elHeaterLength.addEventListener('input', () => { updateCompass(); updateTotalW(); });
+elHeaterAzimuth.addEventListener('input', updateCompass);
+elHeaterWatts.addEventListener('change', updateTotalW);
+
+document.getElementById('heater-cancel').addEventListener('click', closeHeaterModal);
+
+document.getElementById('heater-save').addEventListener('click', () => {
+  const length = parseFloat(elHeaterLength.value);
+  const azimuth = parseFloat(elHeaterAzimuth.value);
+  if (!length || length <= 0) {
+    toast('長さを正の数値で入力してください', 'error');
+    return;
+  }
+  if (isNaN(azimuth)) {
+    toast('方位を数値で入力してください', 'error');
+    return;
+  }
+  const az = ((azimuth % 360) + 360) % 360;
+  const watts = parseFloat(elHeaterWatts.value) || 160;
+  const end = destinationPoint(state.heaterStart[0], state.heaterStart[1], az, length);
+
+  const item = {
+    id: state.editingItemId || genId(),
+    type: 'heater',
+    name: elHeaterName.value.trim() || `ヒーター-${state.items.filter(i=>i.type==='heater').length + 1}`,
+    start: state.heaterStart,
+    end: end,
+    length: length,
+    azimuth: az,
+    watts: watts,
+    totalW: length * watts,
+    note: elHeaterNote.value.trim(),
+    photos: heaterPhotos.slice()
+  };
+
+  if (state.editingItemId) {
+    updateItem(item);
+    toast('ヒーター線を更新しました', 'success');
+  } else {
+    addItem(item);
+    toast(`ヒーター線（${length}m / 方位${az}°）を追加しました`, 'success');
+  }
+  closeHeaterModal();
+  saveToStorage();
+});
+
+elHeaterDelete.addEventListener('click', () => {
+  if (!state.editingItemId) return;
+  if (!confirm('このヒーター線を削除しますか？')) return;
+  deleteItem(state.editingItemId);
+  closeHeaterModal();
+  saveToStorage();
+  toast('削除しました', 'success');
+});
+
+heaterModal.addEventListener('click', (e) => {
+  if (e.target === heaterModal) closeHeaterModal();
+});
+
+// ============================================================
+// Marker modal (panel/power/memo)
+// ============================================================
+const markerModal = document.getElementById('marker-modal');
+const elMarkerName = document.getElementById('marker-name');
+const elMarkerSpec = document.getElementById('marker-spec');
+const elMarkerNote = document.getElementById('marker-note');
+const elMarkerCoord = document.getElementById('marker-coord');
+const elMarkerDelete = document.getElementById('marker-delete');
+const elMarkerTitle = document.getElementById('marker-modal-title');
+const elMarkerSpecLabel = document.getElementById('marker-spec-label');
+const elMarkerSpecField = document.getElementById('marker-spec-field');
+let currentMarkerItem = null;
+
+function openMarkerModal(item) {
+  currentMarkerItem = item;
+  const isNew = !item.id;
+  const labels = {
+    panel: { title: '制御盤', spec: '仕様（容量・型式など）', specPlaceholder: '例：32kVA, 500×500×1200' },
+    power: { title: '受電点', spec: '受電方式・容量', specPlaceholder: '例：単相3線100/200V, 50A' },
+    memo: { title: 'メモピン', spec: '', specPlaceholder: '' }
+  };
+  const cfg = labels[item.type];
+  elMarkerTitle.textContent = (isNew ? '新規' : '編集') + ' - ' + cfg.title;
+  elMarkerCoord.textContent = `${item.position[0].toFixed(6)}, ${item.position[1].toFixed(6)}`;
+  elMarkerName.value = item.name || '';
+  if (cfg.spec) {
+    elMarkerSpecField.style.display = '';
+    elMarkerSpecLabel.textContent = cfg.spec;
+    elMarkerSpec.placeholder = cfg.specPlaceholder;
+    elMarkerSpec.value = item.spec || '';
+  } else {
+    elMarkerSpecField.style.display = 'none';
+  }
+  elMarkerNote.value = item.note || '';
+  elMarkerDelete.style.display = isNew ? 'none' : '';
+  markerPhotos = (item.photos || []).slice();
+  refreshMarkerPhotoThumbs();
+  markerModal.classList.add('show');
+  setTimeout(() => elMarkerName.focus(), 50);
+}
+
+function closeMarkerModal() {
+  markerModal.classList.remove('show');
+  currentMarkerItem = null;
+}
+
+document.getElementById('marker-cancel').addEventListener('click', closeMarkerModal);
+
+document.getElementById('marker-save').addEventListener('click', () => {
+  if (!currentMarkerItem) return;
+  const item = {
+    id: currentMarkerItem.id || genId(),
+    type: currentMarkerItem.type,
+    position: currentMarkerItem.position,
+    name: elMarkerName.value.trim() || TYPE_LABELS[currentMarkerItem.type],
+    spec: elMarkerSpec.value.trim(),
+    note: elMarkerNote.value.trim(),
+    photos: markerPhotos.slice()
+  };
+  if (currentMarkerItem.id) {
+    updateItem(item);
+    toast('更新しました', 'success');
+  } else {
+    addItem(item);
+    toast(`${TYPE_LABELS[item.type]}を追加しました`, 'success');
+  }
+  closeMarkerModal();
+  saveToStorage();
+});
+
+elMarkerDelete.addEventListener('click', () => {
+  if (!currentMarkerItem || !currentMarkerItem.id) return;
+  if (!confirm('削除しますか？')) return;
+  deleteItem(currentMarkerItem.id);
+  closeMarkerModal();
+  saveToStorage();
+  toast('削除しました', 'success');
+});
+
+markerModal.addEventListener('click', (e) => {
+  if (e.target === markerModal) closeMarkerModal();
+});
+
+// ============================================================
+// UI updates
+// ============================================================
+function updateUI() {
+  const heaters = state.items.filter(i => i.type === 'heater');
+  const panels = state.items.filter(i => i.type === 'panel');
+  const wires = state.items.filter(i => i.type === 'wire');
+  const heaterLen = heaters.reduce((s, h) => s + h.length, 0);
+  const wireLen = wires.reduce((s, w) => s + totalLength(w.path), 0);
+
+  document.getElementById('item-count').textContent = state.items.length;
+  document.getElementById('stat-heater-len').textContent = heaterLen.toFixed(0);
+  document.getElementById('stat-heater-count').textContent = heaters.length;
+  document.getElementById('stat-panel-count').textContent = panels.length;
+  document.getElementById('stat-wire-len').textContent = wireLen.toFixed(0);
+
+  const list = document.getElementById('item-list');
+  if (state.items.length === 0) {
+    list.innerHTML = '<div class="empty">ツールを選択して地図上で配置してください</div>';
+    return;
+  }
+  list.innerHTML = '';
+  // Sort: heater, panel, power, wire, area, memo
+  const order = ['heater', 'panel', 'power', 'wire', 'area', 'memo'];
+  const sorted = [...state.items].sort((a, b) => order.indexOf(a.type) - order.indexOf(b.type));
+  sorted.forEach(item => {
+    const el = document.createElement('div');
+    el.className = 'item';
+    el.dataset.type = item.type;
+    let meta = '';
+    if (item.type === 'heater') meta = `${item.length}m / ${item.azimuth}°`;
+    else if (item.type === 'wire') meta = `${totalLength(item.path).toFixed(0)}m`;
+    else if (item.type === 'area') meta = `${item.path.length}点`;
+    el.innerHTML = `
+      <span class="name">${escapeHtml(item.name || TYPE_LABELS[item.type])}</span>
+      <span class="meta">${meta}</span>
+      <button class="delete" title="削除">×</button>
+    `;
+    el.addEventListener('click', (e) => {
+      if (e.target.classList.contains('delete')) return;
+      focusItem(item);
+    });
+    el.querySelector('.delete').addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (confirm(`「${item.name}」を削除しますか？`)) {
+        deleteItem(item.id);
+        saveToStorage();
+        toast('削除しました', 'success');
+      }
+    });
+    list.appendChild(el);
+  });
+}
+
+function focusItem(item) {
+  let target;
+  if (item.type === 'heater') {
+    target = [(item.start[0] + item.end[0]) / 2, (item.start[1] + item.end[1]) / 2];
+    map.setView(target, Math.max(map.getZoom(), 19));
+  } else if (item.position) {
+    map.setView(item.position, Math.max(map.getZoom(), 19));
+  } else if (item.path) {
+    const layer = itemLayers[item.id];
+    if (layer) map.fitBounds(layer.getBounds(), { padding: [40, 40], maxZoom: 21 });
+  }
+  // Open popup
+  setTimeout(() => {
+    const layer = itemLayers[item.id];
+    if (layer && layer.openPopup) layer.openPopup();
+  }, 200);
+}
+
+// ============================================================
+// GPS module
+// ============================================================
+let lastGpsPosition = null; // { lat, lng, accuracy, timestamp }
+let watchId = null;
+let gpsLiveMarker = null;
+let gpsLiveAccuracy = null;
+
+function formatCoord(lat, lng) {
+  return `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+}
+
+function formatAcc(meters) {
+  return meters < 1 ? meters.toFixed(2) + ' m' : meters.toFixed(1) + ' m';
+}
+
+function accClass(meters) {
+  if (meters <= 5) return 'good';
+  if (meters <= 15) return 'warn';
+  return 'bad';
+}
+
+function updateGpsInfoDisplay() {
+  const elCoord = document.getElementById('gps-last-coord');
+  const elAcc = document.getElementById('gps-last-acc');
+  if (!lastGpsPosition) {
+    elCoord.textContent = '―';
+    elAcc.textContent = '―';
+    elAcc.className = 'gps-info-value';
+    return;
+  }
+  elCoord.textContent = formatCoord(lastGpsPosition.lat, lastGpsPosition.lng);
+  elAcc.textContent = formatAcc(lastGpsPosition.accuracy);
+  elAcc.className = 'gps-info-value ' + accClass(lastGpsPosition.accuracy);
+}
+
+function showGpsLiveMarker(lat, lng, accuracy) {
+  // Remove old
+  if (gpsLiveMarker) map.removeLayer(gpsLiveMarker);
+  if (gpsLiveAccuracy) map.removeLayer(gpsLiveAccuracy);
+  // Accuracy circle
+  gpsLiveAccuracy = L.circle([lat, lng], {
+    radius: accuracy,
+    color: '#3fb950',
+    fillColor: '#3fb950',
+    fillOpacity: 0.12,
+    weight: 1,
+    interactive: false
+  }).addTo(map);
+  // Pulse marker
+  gpsLiveMarker = L.marker([lat, lng], {
+    icon: L.divIcon({
+      className: 'custom-pin',
+      html: '<div class="gps-marker-pulse"></div>',
+      iconSize: [16, 16],
+      iconAnchor: [8, 8]
+    }),
+    interactive: false,
+    keyboard: false
+  }).addTo(map);
+}
+
+function clearGpsLiveMarker() {
+  if (gpsLiveMarker) { map.removeLayer(gpsLiveMarker); gpsLiveMarker = null; }
+  if (gpsLiveAccuracy) { map.removeLayer(gpsLiveAccuracy); gpsLiveAccuracy = null; }
+}
+
+// One-shot GPS acquisition
+function acquireGps(opts = {}) {
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) {
+      reject(new Error('このブラウザはGPSに対応していません'));
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        const { latitude, longitude, accuracy } = pos.coords;
+        lastGpsPosition = { lat: latitude, lng: longitude, accuracy, timestamp: Date.now() };
+        updateGpsInfoDisplay();
+        showGpsLiveMarker(latitude, longitude, accuracy);
+        if (opts.panMap !== false) {
+          map.setView([latitude, longitude], opts.zoom || Math.max(map.getZoom(), 21));
+        }
+        resolve(lastGpsPosition);
+      },
+      err => reject(err),
+      { enableHighAccuracy: true, timeout: opts.timeout || 12000, maximumAge: 0 }
+    );
+  });
+}
+
+// Floating GPS button (just go to current location)
+document.getElementById('gps-btn').addEventListener('click', async () => {
+  const btn = document.getElementById('gps-btn');
+  btn.classList.add('locating');
+  try {
+    const pos = await acquireGps();
+    toast(`現在地: ${formatCoord(pos.lat, pos.lng)} (精度 ${formatAcc(pos.accuracy)})`, 'success');
+  } catch (err) {
+    toast('現在地の取得に失敗しました: ' + err.message, 'error');
+  } finally {
+    btn.classList.remove('locating');
+  }
+});
+
+// "Use current location as start point" button
+document.getElementById('gps-set-as-start').addEventListener('click', async () => {
+  const btn = document.getElementById('gps-set-as-start');
+  btn.classList.add('locating');
+  try {
+    const pos = await acquireGps();
+    btn.classList.remove('locating');
+
+    // Action depends on current tool
+    const tool = state.activeTool;
+    if (tool === 'nav') {
+      // Just pan to location (already done by acquireGps with default panMap)
+      toast(`現在地: ${formatCoord(pos.lat, pos.lng)} (精度 ${formatAcc(pos.accuracy)})`, 'success');
+    } else if (tool === 'heater') {
+      // Set as heater start, open dialog
+      cancelDrawing();
+      state.heaterStart = [pos.lat, pos.lng];
+      state.heaterStartAccuracy = pos.accuracy;
+      // Show start marker
+      if (state.startMarker) map.removeLayer(state.startMarker);
+      state.startMarker = L.marker([pos.lat, pos.lng], {
+        icon: L.divIcon({
+          className: 'custom-pin',
+          html: '<div class="pin pin-start"><span>起</span></div>',
+          iconSize: [24, 32],
+          iconAnchor: [12, 28]
+        })
+      }).addTo(map);
+      openHeaterModal(null);
+      toast(`GPS起点取得 (精度 ${formatAcc(pos.accuracy)})`, 'success');
+    } else if (tool === 'panel' || tool === 'power' || tool === 'memo') {
+      openMarkerModal({ id: null, type: tool, position: [pos.lat, pos.lng] });
+      toast(`GPS位置で${TYPE_LABELS[tool]}配置 (精度 ${formatAcc(pos.accuracy)})`, 'success');
+    } else if (tool === 'wire' || tool === 'area') {
+      handlePathClick(pos.lat, pos.lng);
+      toast(`GPS位置を${TYPE_LABELS[tool]}に追加`, 'success');
+    }
+  } catch (err) {
+    btn.classList.remove('locating');
+    toast('現在地の取得に失敗しました: ' + err.message, 'error');
+  }
+});
+
+// Update label on tool change
+function updateGpsActionLabel() {
+  const labels = {
+    nav: { main: '現在地へ地図を移動', sub: 'GPSで地図を現在地にセンタリング' },
+    heater: { main: '現在地を起点にする', sub: 'ヒーター起点として取得 → 長さ・方位を入力' },
+    panel: { main: '現在地に制御盤を配置', sub: 'GPS位置に制御盤マーカーを配置' },
+    power: { main: '現在地に受電点を配置', sub: 'GPS位置に受電点マーカーを配置' },
+    wire: { main: '現在地を配線経由点に', sub: 'GPS位置を配線ルートの点として追加' },
+    area: { main: '現在地を範囲頂点に', sub: 'GPS位置を施工範囲ポリゴンに追加' },
+    memo: { main: '現在地にメモを配置', sub: 'GPS位置にメモピンを配置' }
+  };
+  const cfg = labels[state.activeTool] || labels.nav;
+  document.getElementById('gps-action-label').textContent = cfg.main;
+  document.getElementById('gps-action-sub').textContent = cfg.sub;
+}
+
+// Tracking mode (continuous GPS update)
+document.getElementById('gps-track-toggle').addEventListener('click', () => {
+  const btn = document.getElementById('gps-track-toggle');
+  const status = document.getElementById('gps-track-status');
+  if (watchId !== null) {
+    navigator.geolocation.clearWatch(watchId);
+    watchId = null;
+    btn.classList.remove('tracking');
+    status.textContent = 'OFF';
+    clearGpsLiveMarker();
+    toast('GPS追跡を停止しました', 'success');
+  } else {
+    if (!navigator.geolocation) {
+      toast('このブラウザはGPSに対応していません', 'error');
+      return;
+    }
+    watchId = navigator.geolocation.watchPosition(
+      pos => {
+        const { latitude, longitude, accuracy } = pos.coords;
+        lastGpsPosition = { lat: latitude, lng: longitude, accuracy, timestamp: Date.now() };
+        updateGpsInfoDisplay();
+        showGpsLiveMarker(latitude, longitude, accuracy);
+      },
+      err => {
+        toast('GPS追跡エラー: ' + err.message, 'error');
+      },
+      { enableHighAccuracy: true, maximumAge: 1000, timeout: 15000 }
+    );
+    btn.classList.add('tracking');
+    status.textContent = 'ON';
+    toast('GPS追跡を開始しました', 'success');
+  }
+});
+
+// "GPS recapture" button inside heater modal
+document.getElementById('heater-gps-recapture').addEventListener('click', async () => {
+  const btn = document.getElementById('heater-gps-recapture');
+  const original = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '⏳ 取得中...';
+  try {
+    const pos = await acquireGps({ panMap: false });
+    state.heaterStart = [pos.lat, pos.lng];
+    state.heaterStartAccuracy = pos.accuracy;
+    document.getElementById('heater-start-coord').textContent = formatCoord(pos.lat, pos.lng);
+    const accSpan = document.getElementById('heater-start-acc');
+    accSpan.textContent = `(精度 ${formatAcc(pos.accuracy)})`;
+    accSpan.style.color = pos.accuracy <= 5 ? 'var(--success)' :
+                         pos.accuracy <= 15 ? 'var(--warn)' : 'var(--danger)';
+    // Update start marker
+    if (state.startMarker) map.removeLayer(state.startMarker);
+    state.startMarker = L.marker([pos.lat, pos.lng], {
+      icon: L.divIcon({
+        className: 'custom-pin',
+        html: '<div class="pin pin-start"><span>起</span></div>',
+        iconSize: [24, 32],
+        iconAnchor: [12, 28]
+      })
+    }).addTo(map);
+    toast(`GPS起点を更新 (精度 ${formatAcc(pos.accuracy)})`, 'success');
+  } catch (err) {
+    toast('GPSの取得に失敗しました: ' + err.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = original;
+  }
+});
+
+// Hook into tool change to update GPS button label
+document.querySelectorAll('.fab-tool').forEach(btn => {
+  btn.addEventListener('click', () => {
+    setTimeout(updateGpsActionLabel, 0);
+  });
+});
+updateGpsActionLabel();
+
+// ============================================================
+// Persistence
+// ============================================================
+async function saveToStorage() {
+  try {
+    const data = {
+      projectName: state.projectName,
+      projectInfo: state.projectInfo,
+      fieldMemos: state.fieldMemos,
+      items: state.items,
+      sketches: state.sketches,
+      inputMode: state.inputMode,
+      currentLayer: state.currentLayer,
+      mapCenter: [map.getCenter().lat, map.getCenter().lng],
+      mapZoom: map.getZoom(),
+      savedAt: new Date().toISOString()
+    };
+    if (window.storage) {
+      await window.storage.set(STORAGE_KEY, JSON.stringify(data));
+    } else if (window.localStorage) {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    }
+  } catch (e) {
+    console.error('Save failed', e);
+  }
+}
+
+async function loadFromStorage() {
+  try {
+    let raw = null;
+    if (window.storage) {
+      const r = await window.storage.get(STORAGE_KEY);
+      raw = r ? r.value : null;
+    } else if (window.localStorage) {
+      raw = window.localStorage.getItem(STORAGE_KEY);
+    }
+    if (!raw) return false;
+    const data = JSON.parse(raw);
+    applyData(data);
+    return true;
+  } catch (e) {
+    console.error('Load failed', e);
+    return false;
+  }
+}
+
+function applyData(data) {
+  // Clear current
+  state.items.forEach(item => {
+    if (itemLayers[item.id]) layerGroup.removeLayer(itemLayers[item.id]);
+  });
+  Object.keys(itemLayers).forEach(k => delete itemLayers[k]);
+  state.items = [];
+
+  state.projectName = data.projectName || '';
+  state.projectInfo = data.projectInfo || {};
+  state.fieldMemos = data.fieldMemos || [];
+  state.sketches = data.sketches || [];
+  if (data.inputMode === 'pen') {
+    state.inputMode = 'pen';
+    document.body.classList.add('pen-mode');
+    document.querySelectorAll('.mode-toggle .mode-btn').forEach(b => {
+      b.classList.toggle('active', b.dataset.mode === 'pen');
+    });
+  }
+  document.getElementById('project-name').value = state.projectName;
+  (data.items || []).forEach(item => {
+    state.items.push(item);
+    renderItem(item);
+  });
+  if (data.currentLayer && layerDefs[data.currentLayer]) setLayer(data.currentLayer);
+  if (data.mapCenter && data.mapZoom) {
+    map.setView(data.mapCenter, data.mapZoom);
+  }
+  renderFieldMemos();
+  if (typeof redrawSketches === 'function') redrawSketches();
+  updateUI();
+}
+
+document.getElementById('project-name').addEventListener('input', (e) => {
+  state.projectName = e.target.value;
+  saveToStorage();
+});
+
+document.getElementById('btn-save').addEventListener('click', async () => {
+  await saveToStorage();
+  toast('ローカルに保存しました', 'success');
+});
+
+document.getElementById('btn-load').addEventListener('click', () => {
+  document.getElementById('file-input').click();
+});
+
+document.getElementById('file-input').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    try {
+      const data = JSON.parse(ev.target.result);
+      applyData(data);
+      saveToStorage();
+      toast('JSONファイルを読み込みました', 'success');
+    } catch (err) {
+      toast('JSONの読み込みに失敗しました', 'error');
+    }
+  };
+  reader.readAsText(file);
+  e.target.value = '';
+});
+
+document.getElementById('btn-clear').addEventListener('click', async () => {
+  if (!confirm('すべての配置とスケッチを消去しますか？この操作は取り消せません。')) return;
+  state.items.forEach(item => {
+    if (itemLayers[item.id]) layerGroup.removeLayer(itemLayers[item.id]);
+  });
+  Object.keys(itemLayers).forEach(k => delete itemLayers[k]);
+  state.items = [];
+  state.sketches = [];
+  state.undoStack = [];
+  if (typeof redrawSketches === 'function') redrawSketches();
+  updateUI();
+  await saveToStorage();
+  toast('全消去しました', 'success');
+});
+
+// ============================================================
+// Export
+// ============================================================
+document.getElementById('btn-export-json').addEventListener('click', () => {
+  const data = {
+    projectName: state.projectName,
+    projectInfo: state.projectInfo || {},
+    fieldMemos: state.fieldMemos || [],
+    sketches: state.sketches || [],
+    exportedAt: new Date().toISOString(),
+    items: state.items,
+    summary: {
+      heaterCount: state.items.filter(i=>i.type==='heater').length,
+      heaterLength: state.items.filter(i=>i.type==='heater').reduce((s,h)=>s+h.length,0),
+      panelCount: state.items.filter(i=>i.type==='panel').length,
+      powerCount: state.items.filter(i=>i.type==='power').length,
+      wireLength: state.items.filter(i=>i.type==='wire').reduce((s,w)=>s+totalLength(w.path),0),
+      fieldMemoCount: (state.fieldMemos || []).length,
+      sketchCount: (state.sketches || []).length
+    }
+  };
+  downloadFile(
+    JSON.stringify(data, null, 2),
+    (state.projectName || 'rh_survey') + '_' + dateStamp() + '.json',
+    'application/json'
+  );
+  toast('JSONをダウンロードしました', 'success');
+});
+
+document.getElementById('btn-export-kml').addEventListener('click', () => {
+  const kml = generateKML();
+  downloadFile(
+    kml,
+    (state.projectName || 'rh_survey') + '_' + dateStamp() + '.kml',
+    'application/vnd.google-earth.kml+xml'
+  );
+  toast('KMLをダウンロードしました（Google Earthで開けます）', 'success');
+});
+
+function dateStamp() {
+  const d = new Date();
+  return d.getFullYear() + ('0'+(d.getMonth()+1)).slice(-2) + ('0'+d.getDate()).slice(-2);
+}
+
+function downloadFile(content, filename, mime) {
+  const blob = new Blob([content], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function generateKML() {
+  const lines = [];
+  lines.push('<?xml version="1.0" encoding="UTF-8"?>');
+  lines.push('<kml xmlns="http://www.opengis.net/kml/2.2">');
+  lines.push('<Document>');
+  lines.push(`<name>${escapeXml(state.projectName || 'ロードヒーティング現地調査')}</name>`);
+
+  // Styles
+  lines.push(`<Style id="heater"><LineStyle><color>ff3566ff</color><width>4</width></LineStyle></Style>`);
+  lines.push(`<Style id="wire"><LineStyle><color>ffcccccc</color><width>2</width></LineStyle></Style>`);
+  lines.push(`<Style id="area"><LineStyle><color>ff00d6a6</color><width>2</width></LineStyle><PolyStyle><color>4000d6a6</color></PolyStyle></Style>`);
+  lines.push(`<Style id="panel"><IconStyle><color>ffde4ea8</color><scale>1.1</scale></IconStyle></Style>`);
+  lines.push(`<Style id="power"><IconStyle><color>ff3fd2ff</color><scale>1.1</scale></IconStyle></Style>`);
+  lines.push(`<Style id="memo"><IconStyle><color>ffff7dc7</color><scale>1.0</scale></IconStyle></Style>`);
+
+  state.items.forEach(item => {
+    if (item.type === 'heater') {
+      lines.push('<Placemark>');
+      lines.push(`<name>${escapeXml(item.name)} (${item.length}m / ${item.azimuth}°)</name>`);
+      lines.push(`<description><![CDATA[長さ: ${item.length}m<br>方位: ${item.azimuth}°<br>出力: ${item.watts}W/m × ${item.length}m = ${item.totalW}W<br>${item.note ? '備考: ' + item.note : ''}]]></description>`);
+      lines.push('<styleUrl>#heater</styleUrl>');
+      lines.push('<LineString><coordinates>');
+      lines.push(`${item.start[1]},${item.start[0]},0 ${item.end[1]},${item.end[0]},0`);
+      lines.push('</coordinates></LineString>');
+      lines.push('</Placemark>');
+    } else if (item.type === 'wire') {
+      lines.push('<Placemark>');
+      lines.push(`<name>${escapeXml(item.name)}</name>`);
+      lines.push('<styleUrl>#wire</styleUrl>');
+      lines.push('<LineString><coordinates>');
+      lines.push(item.path.map(p => `${p[1]},${p[0]},0`).join(' '));
+      lines.push('</coordinates></LineString>');
+      lines.push('</Placemark>');
+    } else if (item.type === 'area') {
+      lines.push('<Placemark>');
+      lines.push(`<name>${escapeXml(item.name)}</name>`);
+      lines.push('<styleUrl>#area</styleUrl>');
+      lines.push('<Polygon><outerBoundaryIs><LinearRing><coordinates>');
+      const ring = item.path.map(p => `${p[1]},${p[0]},0`).join(' ');
+      const closed = ring + ' ' + `${item.path[0][1]},${item.path[0][0]},0`;
+      lines.push(closed);
+      lines.push('</coordinates></LinearRing></outerBoundaryIs></Polygon>');
+      lines.push('</Placemark>');
+    } else if (['panel', 'power', 'memo'].includes(item.type)) {
+      lines.push('<Placemark>');
+      lines.push(`<name>${escapeXml(item.name)}</name>`);
+      lines.push(`<styleUrl>#${item.type}</styleUrl>`);
+      const desc = [item.spec ? '仕様: ' + item.spec : '', item.note ? '備考: ' + item.note : ''].filter(Boolean).join('<br>');
+      if (desc) lines.push(`<description><![CDATA[${desc}]]></description>`);
+      lines.push(`<Point><coordinates>${item.position[1]},${item.position[0]},0</coordinates></Point>`);
+      lines.push('</Placemark>');
+    }
+  });
+
+  lines.push('</Document>');
+  lines.push('</kml>');
+  return lines.join('\n');
+}
+
+function escapeXml(s) {
+  if (!s) return '';
+  return String(s).replace(/[<>&"']/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&apos;'}[c]));
+}
+
+// ============================================================
+// Toast
+// ============================================================
+let toastTimer;
+function toast(msg, type) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show' + (type ? ' ' + type : '');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+// ============================================================
+// Photo attachment
+// ============================================================
+const MAX_PHOTO_DIM = 1600; // max longer-side pixels
+const JPEG_QUALITY = 0.78;
+
+function fileToCompressedDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    if (!file.type.startsWith('image/')) {
+      reject(new Error('画像ファイルではありません'));
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        let w = img.width, h = img.height;
+        const scale = Math.min(1, MAX_PHOTO_DIM / Math.max(w, h));
+        w = Math.round(w * scale);
+        h = Math.round(h * scale);
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#fff'; // background for transparent PNGs
+        ctx.fillRect(0, 0, w, h);
+        ctx.drawImage(img, 0, 0, w, h);
+        const dataUrl = canvas.toDataURL('image/jpeg', JPEG_QUALITY);
+        resolve(dataUrl);
+      };
+      img.onerror = () => reject(new Error('画像の読み込みに失敗しました'));
+      img.src = e.target.result;
+    };
+    reader.onerror = () => reject(new Error('ファイルの読み込みに失敗しました'));
+    reader.readAsDataURL(file);
+  });
+}
+
+function renderPhotoThumbs(containerId, photos, onRemove) {
+  const c = document.getElementById(containerId);
+  c.innerHTML = '';
+  (photos || []).forEach((dataUrl, idx) => {
+    const thumb = document.createElement('div');
+    thumb.className = 'photo-thumb';
+    thumb.innerHTML = `<img src="${dataUrl}" alt="photo${idx+1}"><button class="remove" type="button" title="削除">×</button>`;
+    thumb.querySelector('img').addEventListener('click', () => openPhotoViewer(dataUrl));
+    thumb.querySelector('.remove').addEventListener('click', (e) => {
+      e.stopPropagation();
+      onRemove(idx);
+    });
+    c.appendChild(thumb);
+  });
+}
+
+function openPhotoViewer(dataUrl) {
+  document.getElementById('photo-viewer-img').src = dataUrl;
+  document.getElementById('photo-viewer').classList.add('show');
+}
+
+// Wire up heater modal photo inputs
+let heaterPhotos = [];
+function setupPhotoInput(inputId, getPhotos, setPhotos, refreshFn) {
+  document.getElementById(inputId).addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    try {
+      const dataUrl = await fileToCompressedDataUrl(file);
+      const photos = getPhotos();
+      photos.push(dataUrl);
+      setPhotos(photos);
+      refreshFn();
+      toast('写真を追加しました', 'success');
+    } catch (err) {
+      toast(err.message, 'error');
+    }
+    e.target.value = '';
+  });
+}
+
+// Refresh thumbs (used when opening modals)
+function refreshHeaterPhotoThumbs() {
+  renderPhotoThumbs('heater-photos', heaterPhotos, (idx) => {
+    heaterPhotos.splice(idx, 1);
+    refreshHeaterPhotoThumbs();
+  });
+}
+function refreshMarkerPhotoThumbs() {
+  renderPhotoThumbs('marker-photos', markerPhotos, (idx) => {
+    markerPhotos.splice(idx, 1);
+    refreshMarkerPhotoThumbs();
+  });
+}
+
+setupPhotoInput('heater-photo-cam', () => heaterPhotos, p => heaterPhotos = p, refreshHeaterPhotoThumbs);
+setupPhotoInput('heater-photo-lib', () => heaterPhotos, p => heaterPhotos = p, refreshHeaterPhotoThumbs);
+
+let markerPhotos = [];
+setupPhotoInput('marker-photo-cam', () => markerPhotos, p => markerPhotos = p, refreshMarkerPhotoThumbs);
+setupPhotoInput('marker-photo-lib', () => markerPhotos, p => markerPhotos = p, refreshMarkerPhotoThumbs);
+
+// ============================================================
+// Heater duplicate (parallel copy)
+// ============================================================
+let duplicateDirection = 90; // +90 = right, -90 = left (relative to azimuth)
+
+document.getElementById('heater-dup-left').addEventListener('click', (e) => {
+  duplicateDirection = -90;
+  document.getElementById('heater-dup-left').classList.add('active');
+  document.getElementById('heater-dup-right').classList.remove('active');
+});
+document.getElementById('heater-dup-right').addEventListener('click', (e) => {
+  duplicateDirection = 90;
+  document.getElementById('heater-dup-right').classList.add('active');
+  document.getElementById('heater-dup-left').classList.remove('active');
+});
+
+document.getElementById('heater-dup-do').addEventListener('click', () => {
+  if (!state.editingItemId) return;
+  const original = state.items.find(i => i.id === state.editingItemId);
+  if (!original) return;
+  const offset = parseFloat(document.getElementById('heater-dup-offset').value);
+  if (!offset || offset <= 0) {
+    toast('オフセット距離を正の数値で入力してください', 'error');
+    return;
+  }
+  // New start = move original start perpendicular to azimuth by offset
+  const perpAz = (original.azimuth + duplicateDirection + 360) % 360;
+  const newStart = destinationPoint(original.start[0], original.start[1], perpAz, offset);
+  const newEnd = destinationPoint(newStart[0], newStart[1], original.azimuth, original.length);
+
+  const newItem = {
+    id: genId(),
+    type: 'heater',
+    name: original.name + '_複製',
+    start: newStart,
+    end: newEnd,
+    length: original.length,
+    azimuth: original.azimuth,
+    watts: original.watts,
+    totalW: original.length * original.watts,
+    note: original.note,
+    photos: [] // don't copy photos
+  };
+  addItem(newItem);
+  saveToStorage();
+  closeHeaterModal();
+  toast(`「${original.name}」を${duplicateDirection > 0 ? '右' : '左'}に${offset}m平行複写しました`, 'success');
+});
+
+// ============================================================
+// PDF Report generation (open new window with print layout)
+// ============================================================
+document.getElementById('action-pdf').addEventListener('click', () => {
+  if (state.items.length === 0 && (state.sketches || []).length === 0) {
+    toast('配置済み要素が0件です。要素を追加してから出力してください', 'error');
+    return;
+  }
+  generatePdfReport();
+});
+
+function generatePdfReport() {
+  const bounds = computeAllBounds();
+  if (!bounds) {
+    toast('地図範囲を計算できません', 'error');
+    return;
+  }
+  const center = bounds.getCenter();
+  const pi = state.projectInfo || {};
+  const projectName = pi.project_name || state.projectName || '無題プロジェクト';
+  const today = new Date();
+  const dateStr = `${today.getFullYear()}年${today.getMonth()+1}月${today.getDate()}日`;
+  const tile = layerDefs[state.currentLayer];
+
+  // Serialize items for the new window
+  const itemsJson = JSON.stringify(state.items);
+  const sketchesJson = JSON.stringify(state.sketches || []);
+  const tileJson = JSON.stringify(tile);
+  const boundsJson = JSON.stringify([
+    [bounds.getSouthWest().lat, bounds.getSouthWest().lng],
+    [bounds.getNorthEast().lat, bounds.getNorthEast().lng]
+  ]);
+
+  const heaters = state.items.filter(i => i.type === 'heater');
+  const panels = state.items.filter(i => i.type === 'panel');
+  const powers = state.items.filter(i => i.type === 'power');
+  const wires = state.items.filter(i => i.type === 'wire');
+  const areas = state.items.filter(i => i.type === 'area');
+  const memos = state.items.filter(i => i.type === 'memo');
+
+  const totalHeaterLen = heaters.reduce((s, h) => s + h.length, 0);
+  const totalHeaterW = heaters.reduce((s, h) => s + (h.totalW || 0), 0);
+  const totalWireLen = wires.reduce((s, w) => s + totalLength(w.path), 0);
+
+  // Build table rows
+  const heaterRows = heaters.map((h, i) => `
+    <tr>
+      <td>${i + 1}</td>
+      <td>${escapeHtml(h.name)}</td>
+      <td class="num">${h.length}</td>
+      <td class="num">${h.azimuth}</td>
+      <td class="num">${h.watts}</td>
+      <td class="num">${(h.totalW || 0).toLocaleString()}</td>
+      <td>${escapeHtml(h.note || '')}</td>
+    </tr>
+  `).join('');
+
+  const markerRows = [...panels, ...powers, ...memos].map((m, i) => `
+    <tr>
+      <td>${i + 1}</td>
+      <td>${TYPE_LABELS[m.type]}</td>
+      <td>${escapeHtml(m.name)}</td>
+      <td>${escapeHtml(m.spec || '')}</td>
+      <td>${escapeHtml(m.note || '')}</td>
+    </tr>
+  `).join('');
+
+  // Photo grid
+  const allPhotos = [];
+  state.items.forEach(item => {
+    (item.photos || []).forEach((url, idx) => {
+      allPhotos.push({ name: item.name, type: item.type, idx, url });
+    });
+  });
+  const photoHtml = allPhotos.length > 0 ? `
+    <div class="report-section page-break">
+      <h2>5. 現地写真</h2>
+      <div class="photo-grid">
+        ${allPhotos.map(p => `
+          <div class="photo-card">
+            <img src="${p.url}">
+            <div class="photo-cap">${escapeHtml(p.name)}${allPhotos.filter(x => x.name === p.name).length > 1 ? ` (${p.idx+1})` : ''}</div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  ` : '';
+
+  // Field memos section
+  const fieldMemos = state.fieldMemos || [];
+  const sortedMemos = [...fieldMemos].sort((a, b) => (a.ts || '').localeCompare(b.ts || ''));
+  const fieldMemoHtml = sortedMemos.length > 0 ? `
+    <div class="report-section ${allPhotos.length > 0 ? '' : 'page-break'}">
+      <h2>6. 現場メモ</h2>
+      <table>
+        <thead>
+          <tr>
+            <th style="width:30px;">No</th>
+            <th style="width:140px;">日時</th>
+            <th style="width:60px;">区分</th>
+            <th>内容</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${sortedMemos.map((m, i) => `
+            <tr>
+              <td>${i + 1}</td>
+              <td>${fmtMemoTime(m.ts)}</td>
+              <td>${m.isVoice ? '🎤 音声' : '入力'}</td>
+              <td>${escapeHtml(m.text)}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+  ` : '';
+
+  // Project info table
+  const piRow = (label, value) => value ? `<tr><th>${label}</th><td>${escapeHtml(value)}</td></tr>` : '';
+  const piRow2 = (l1, v1, l2, v2) => `<tr>
+    <th>${l1}</th><td>${v1 ? escapeHtml(v1) : '―'}</td>
+    <th>${l2}</th><td>${v2 ? escapeHtml(v2) : '―'}</td>
+  </tr>`;
+  const clientFull = [pi.client, pi.client_detail].filter(Boolean).join(' / ');
+  const piTable = `
+    <table class="pi-table">
+      ${piRow2('案件名', pi.project_name || state.projectName, '案件番号', pi.project_no)}
+      ${piRow2('発注者', clientFull, '工事種別', pi.work_type)}
+      ${piRow2('工事場所', pi.location, '路線名', pi.route)}
+      ${piRow2('KP', pi.kp, '道路種別', pi.road_type)}
+      ${piRow2('施工予定面積', pi.area ? pi.area + ' ㎡' : '', '施工延長', pi.length ? pi.length + ' m' : '')}
+      ${piRow2('受電方式', pi.power_type, '容量', pi.power_capacity)}
+      ${piRow2('既設インフラ', pi.existing, '引込予定電線', pi.cable)}
+      ${piRow2('調査日', pi.survey_date, '調査者', pi.surveyor)}
+      ${piRow2('作成者', pi.author, '提出先', pi.submit_to)}
+      ${pi.notes ? `<tr><th>特記事項</th><td colspan="3" style="white-space:pre-wrap;">${escapeHtml(pi.notes)}</td></tr>` : ''}
+    </table>
+  `;
+
+  const html = `<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>ロードヒーティング現地調査報告書 - ${escapeHtml(projectName)}</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+  @page { size: A3 landscape; margin: 12mm; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: "Noto Sans JP", "Yu Gothic", "Meiryo", sans-serif; font-size: 10pt; color: #1a1a1a; background: white; }
+  .report-page { padding: 0; }
+  .report-header { display: flex; align-items: center; justify-content: space-between; border-bottom: 3px solid #ff6b35; padding-bottom: 8px; margin-bottom: 12px; }
+  .report-title { font-size: 18pt; font-weight: 700; }
+  .report-sub { color: #666; font-size: 10pt; }
+  .report-meta { text-align: right; font-size: 10pt; color: #444; }
+  .report-section { margin-bottom: 16px; }
+  .report-section h2 { font-size: 12pt; padding: 4px 10px; background: #1a2030; color: white; border-radius: 3px; margin-bottom: 8px; }
+  .summary-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; margin-bottom: 12px; }
+  .summary-card { border: 1px solid #ddd; padding: 8px 10px; border-radius: 4px; background: #f8f9fa; }
+  .summary-label { font-size: 9pt; color: #666; }
+  .summary-value { font-size: 16pt; font-weight: 700; color: #1a2030; font-family: monospace; }
+  .summary-value .unit { font-size: 10pt; color: #666; margin-left: 2px; font-family: inherit; }
+  #report-map { width: 100%; height: 380px; border: 1px solid #ccc; margin-bottom: 10px; background: #eee; }
+  table { width: 100%; border-collapse: collapse; font-size: 9pt; }
+  thead { background: #1a2030; color: white; }
+  th, td { border: 1px solid #ccc; padding: 4px 8px; text-align: left; vertical-align: top; }
+  td.num { text-align: right; font-family: monospace; }
+  tbody tr:nth-child(odd) { background: #f8f9fa; }
+  .pi-table th { background: #2a3441; color: white; width: 130px; font-weight: 600; }
+  .pi-table tr:nth-child(odd) { background: white; }
+  .pi-table tr:nth-child(even) td { background: #f8f9fa; }
+  .page-break { page-break-before: always; padding-top: 8mm; }
+  .photo-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+  .photo-card { border: 1px solid #ddd; padding: 4px; border-radius: 4px; background: white; }
+  .photo-card img { width: 100%; height: 180px; object-fit: cover; display: block; }
+  .photo-cap { padding: 4px; font-size: 9pt; text-align: center; color: #444; }
+  .footer { margin-top: 12px; padding-top: 6px; border-top: 1px solid #ddd; font-size: 8pt; color: #888; text-align: right; }
+  .heater-label-pdf { background: rgba(255,107,53,0.95); color: white; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 3px; font-family: monospace; }
+  @media print {
+    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .no-print { display: none !important; }
+  }
+  .action-bar { position: fixed; top: 10px; right: 10px; display: flex; gap: 8px; z-index: 9999; }
+  .action-btn { padding: 10px 18px; border-radius: 6px; cursor: pointer; border: none; font-size: 12pt; font-weight: 600; box-shadow: 0 2px 8px rgba(0,0,0,0.3); font-family: inherit; }
+  .action-btn.print { background: #ff6b35; color: white; }
+  .action-btn.print:hover { background: #e85a25; }
+  .action-btn.home { background: #1f6feb; color: white; }
+  .action-btn.home:hover { background: #1158c7; }
+</style>
+</head>
+<body>
+<div class="action-bar no-print">
+  <button class="action-btn home" onclick="goHome()" title="編集画面に戻る">🏠 編集画面に戻る</button>
+  <button class="action-btn print" onclick="window.print()">📄 印刷 / PDFとして保存</button>
+</div>
+
+<div class="report-page">
+  <div class="report-header">
+    <div>
+      <div class="report-title">ロードヒーティング 現地調査報告書</div>
+      <div class="report-sub">${escapeHtml(projectName)}${pi.client ? ' ／ ' + escapeHtml(pi.client) : ''}</div>
+    </div>
+    <div class="report-meta">
+      作成日: ${dateStr}<br>
+      ${pi.author ? escapeHtml(pi.author) : '株式会社太陽 TAIYOSHEET事業部'}
+    </div>
+  </div>
+
+  <div class="report-section">
+    <h2>1. 物件情報</h2>
+    ${piTable}
+  </div>
+
+  <div class="report-section">
+    <h2>2. 数量集計</h2>
+    <div class="summary-grid">
+      <div class="summary-card"><div class="summary-label">ヒーター延長</div><div class="summary-value">${totalHeaterLen}<span class="unit">m</span></div></div>
+      <div class="summary-card"><div class="summary-label">ヒーター本数</div><div class="summary-value">${heaters.length}<span class="unit">本</span></div></div>
+      <div class="summary-card"><div class="summary-label">総出力</div><div class="summary-value">${(totalHeaterW/1000).toFixed(1)}<span class="unit">kW</span></div></div>
+      <div class="summary-card"><div class="summary-label">制御盤</div><div class="summary-value">${panels.length}<span class="unit">台</span></div></div>
+      <div class="summary-card"><div class="summary-label">受電点</div><div class="summary-value">${powers.length}<span class="unit">箇所</span></div></div>
+      <div class="summary-card"><div class="summary-label">配線延長</div><div class="summary-value">${totalWireLen.toFixed(0)}<span class="unit">m</span></div></div>
+    </div>
+  </div>
+
+  <div class="report-section page-break">
+    <h2>3. 配置平面図</h2>
+    <div id="report-map"></div>
+  </div>
+
+  ${heaters.length > 0 ? `
+  <div class="report-section">
+    <h2>4. ヒーター一覧</h2>
+    <table>
+      <thead>
+        <tr>
+          <th style="width:30px;">No</th>
+          <th>名称</th>
+          <th style="width:60px;">長さ(m)</th>
+          <th style="width:60px;">方位(°)</th>
+          <th style="width:70px;">W/m</th>
+          <th style="width:90px;">出力(W)</th>
+          <th>備考</th>
+        </tr>
+      </thead>
+      <tbody>${heaterRows}</tbody>
+    </table>
+  </div>
+  ` : ''}
+
+  ${(panels.length + powers.length + memos.length) > 0 ? `
+  <div class="report-section">
+    <h2>4-2. 設備・メモ一覧</h2>
+    <table>
+      <thead>
+        <tr><th style="width:30px;">No</th><th style="width:80px;">種別</th><th>名称</th><th>仕様</th><th>備考</th></tr>
+      </thead>
+      <tbody>${markerRows}</tbody>
+    </table>
+  </div>
+  ` : ''}
+
+  ${photoHtml}
+
+  ${fieldMemoHtml}
+
+  <div class="footer">
+    ロードヒーティング現地調査アプリ ─ ${pi.author ? escapeHtml(pi.author) : '株式会社太陽 TAIYOSHEET事業部'}
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"><\/script>
+<script>
+  function goHome() {
+    // Try to close (works for popups opened by window.open)
+    try { window.close(); } catch (e) {}
+    // Fallback: go back in history
+    setTimeout(() => {
+      if (!window.closed) {
+        if (window.opener) {
+          try { window.opener.focus(); } catch (e) {}
+        }
+        if (window.history.length > 1) {
+          window.history.back();
+        }
+      }
+    }, 100);
+  }
+  const items = ${itemsJson};
+  const sketches = ${sketchesJson};
+  const tile = ${tileJson};
+  const bounds = ${boundsJson};
+  const reportMap = L.map('report-map', { zoomControl: false, attributionControl: false, maxZoom: 22 });
+  L.tileLayer(tile.url, { attribution: tile.attribution, maxNativeZoom: tile.maxNativeZoom, maxZoom: tile.maxZoom }).addTo(reportMap);
+  reportMap.fitBounds(bounds, { padding: [30, 30], maxZoom: 19 });
+
+  // Render sketches first (under markers)
+  sketches.forEach(sk => {
+    L.polyline(sk.points, { color: sk.color, weight: sk.width, opacity: 0.9, lineCap: 'round', lineJoin: 'round', smoothFactor: 1.0 }).addTo(reportMap);
+  });
+
+  items.forEach(item => {
+    if (item.type === 'heater') {
+      L.polyline([item.start, item.end], { color: '#ff6b35', weight: 4, opacity: 0.95 }).addTo(reportMap);
+      L.circleMarker(item.start, { radius: 4, color: '#ff6b35', fillColor: '#fff', fillOpacity: 1, weight: 2 }).addTo(reportMap);
+      L.circleMarker(item.end, { radius: 4, color: '#ff6b35', fillColor: '#ff6b35', fillOpacity: 1, weight: 2 }).addTo(reportMap);
+      const mid = [(item.start[0]+item.end[0])/2, (item.start[1]+item.end[1])/2];
+      L.marker(mid, { icon: L.divIcon({ className: 'heater-label-pdf', html: item.name + ' ' + item.length + 'm', iconSize: null, iconAnchor: [0,0] }), interactive: false }).addTo(reportMap);
+    } else if (item.type === 'panel') {
+      L.marker(item.position, { icon: L.divIcon({ html: '<div style="background:#4ea8de; color:white; width:24px; height:24px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; border:2px solid white; box-shadow:0 2px 4px rgba(0,0,0,0.3);">盤</div>', iconSize: [24,24], iconAnchor: [12,12] }) }).addTo(reportMap);
+    } else if (item.type === 'power') {
+      L.marker(item.position, { icon: L.divIcon({ html: '<div style="background:#ffd23f; color:#333; width:24px; height:24px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; border:2px solid white; box-shadow:0 2px 4px rgba(0,0,0,0.3);">電</div>', iconSize: [24,24], iconAnchor: [12,12] }) }).addTo(reportMap);
+    } else if (item.type === 'memo') {
+      L.marker(item.position, { icon: L.divIcon({ html: '<div style="background:#c77dff; color:white; width:24px; height:24px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:12px; border:2px solid white; box-shadow:0 2px 4px rgba(0,0,0,0.3);">📌</div>', iconSize: [24,24], iconAnchor: [12,12] }) }).addTo(reportMap);
+    } else if (item.type === 'wire') {
+      L.polyline(item.path, { color: '#777', weight: 2.5, dashArray: '6 3' }).addTo(reportMap);
+    } else if (item.type === 'area') {
+      L.polygon(item.path, { color: '#06d6a0', fillColor: '#06d6a0', fillOpacity: 0.2, weight: 2 }).addTo(reportMap);
+    }
+  });
+<\/script>
+</body>
+</html>`;
+
+  const w = window.open('', '_blank', 'width=1400,height=900');
+  if (!w) {
+    toast('ポップアップがブロックされました。ブラウザの設定を確認してください', 'error');
+    return;
+  }
+  w.document.write(html);
+  w.document.close();
+  toast('別ウィンドウで報告書を開きました。「印刷 / PDFとして保存」ボタンから出力できます', 'success');
+}
+
+function computeAllBounds() {
+  const points = [];
+  state.items.forEach(item => {
+    if (item.type === 'heater') {
+      points.push(item.start, item.end);
+    } else if (item.position) {
+      points.push(item.position);
+    } else if (item.path) {
+      item.path.forEach(p => points.push(p));
+    }
+  });
+  (state.sketches || []).forEach(sk => {
+    sk.points.forEach(p => points.push(p));
+  });
+  if (points.length === 0) {
+    return L.latLngBounds([map.getCenter()]).pad(0.5);
+  }
+  return L.latLngBounds(points).pad(0.15);
+}
+
+// ============================================================
+// Project Info modal
+// ============================================================
+const PI_FIELDS = [
+  'project-name', 'project-no', 'client', 'client-detail', 'location', 'route', 'kp',
+  'work-type', 'road-type', 'area', 'length',
+  'power-type', 'power-capacity', 'existing', 'cable',
+  'survey-date', 'surveyor', 'author', 'submit-to',
+  'notes'
+];
+
+function openProjectInfoModal() {
+  const pi = state.projectInfo || {};
+  PI_FIELDS.forEach(f => {
+    const el = document.getElementById('pi-' + f);
+    if (!el) return;
+    const key = f.replace(/-/g, '_');
+    el.value = pi[key] || '';
+  });
+  // Sync project name from header
+  if (state.projectName && !pi.project_name) {
+    document.getElementById('pi-project-name').value = state.projectName;
+  }
+  document.getElementById('project-info-modal').classList.add('show');
+}
+
+function closeProjectInfoModal() {
+  document.getElementById('project-info-modal').classList.remove('show');
+}
+
+document.getElementById('btn-project-info').addEventListener('click', openProjectInfoModal);
+document.getElementById('pi-cancel').addEventListener('click', closeProjectInfoModal);
+document.getElementById('project-info-modal').addEventListener('click', (e) => {
+  if (e.target.id === 'project-info-modal') closeProjectInfoModal();
+});
+
+document.getElementById('pi-save').addEventListener('click', () => {
+  const pi = {};
+  PI_FIELDS.forEach(f => {
+    const el = document.getElementById('pi-' + f);
+    if (!el) return;
+    const key = f.replace(/-/g, '_');
+    pi[key] = el.value.trim();
+  });
+  state.projectInfo = pi;
+  // Sync project name back to header if entered
+  if (pi.project_name) {
+    state.projectName = pi.project_name;
+    document.getElementById('project-name').value = pi.project_name;
+  }
+  saveToStorage();
+  closeProjectInfoModal();
+  toast('物件情報を保存しました', 'success');
+});
+
+// ============================================================
+// Field Memo (現場メモ) - with voice-to-text
+// ============================================================
+let speechRecognition = null;
+let isRecording = false;
+let recogFinalBuffer = ''; // accumulates finalized text during a session
+
+function genMemoId() {
+  return 'memo-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7);
+}
+
+function fmtMemoTime(iso) {
+  try {
+    const d = new Date(iso);
+    const yy = d.getFullYear();
+    const mm = ('0' + (d.getMonth()+1)).slice(-2);
+    const dd = ('0' + d.getDate()).slice(-2);
+    const hh = ('0' + d.getHours()).slice(-2);
+    const mn = ('0' + d.getMinutes()).slice(-2);
+    return `${yy}/${mm}/${dd} ${hh}:${mn}`;
+  } catch { return iso; }
+}
+
+function renderFieldMemos() {
+  const list = document.getElementById('memo-list');
+  const countEl = document.getElementById('memo-count');
+  countEl.textContent = state.fieldMemos.length;
+  if (state.fieldMemos.length === 0) {
+    list.innerHTML = '<div class="empty">メモはまだありません</div>';
+    return;
+  }
+  list.innerHTML = '';
+  // Newest first
+  const sorted = [...state.fieldMemos].sort((a, b) => (b.ts || '').localeCompare(a.ts || ''));
+  sorted.forEach(memo => {
+    const el = document.createElement('div');
+    el.className = 'memo-entry' + (memo.isVoice ? ' voice' : '');
+    el.innerHTML = `
+      <div class="memo-meta">
+        <span>${fmtMemoTime(memo.ts)}</span>
+        ${memo.isVoice ? '<span class="badge">🎤 音声</span>' : ''}
+      </div>
+      <div class="memo-text" data-id="${memo.id}">${escapeHtml(memo.text)}</div>
+      <div class="memo-entry-actions">
+        <button class="edit" data-id="${memo.id}">編集</button>
+        <button class="delete" data-id="${memo.id}">削除</button>
+      </div>
+    `;
+    el.querySelector('.edit').addEventListener('click', () => editFieldMemo(memo.id));
+    el.querySelector('.delete').addEventListener('click', () => deleteFieldMemo(memo.id));
+    list.appendChild(el);
+  });
+}
+
+function addFieldMemo(text, isVoice) {
+  text = (text || '').trim();
+  if (!text) return;
+  state.fieldMemos.push({
+    id: genMemoId(),
+    ts: new Date().toISOString(),
+    text: text,
+    isVoice: !!isVoice
+  });
+  renderFieldMemos();
+  saveToStorage();
+}
+
+function deleteFieldMemo(id) {
+  if (!confirm('このメモを削除しますか？')) return;
+  state.fieldMemos = state.fieldMemos.filter(m => m.id !== id);
+  renderFieldMemos();
+  saveToStorage();
+  toast('メモを削除しました', 'success');
+}
+
+function editFieldMemo(id) {
+  const memo = state.fieldMemos.find(m => m.id === id);
+  if (!memo) return;
+  const newText = prompt('メモを編集', memo.text);
+  if (newText === null) return;
+  memo.text = newText.trim();
+  renderFieldMemos();
+  saveToStorage();
+  toast('メモを更新しました', 'success');
+}
+
+// Add memo button
+document.getElementById('btn-add-memo').addEventListener('click', () => {
+  const input = document.getElementById('memo-input');
+  const text = input.value.trim();
+  if (!text) {
+    toast('メモを入力してください', 'error');
+    return;
+  }
+  addFieldMemo(text, false); // assume manual unless flagged below
+  input.value = '';
+  toast('メモを追加しました', 'success');
+});
+
+// Clear button
+document.getElementById('btn-clear-memo').addEventListener('click', () => {
+  document.getElementById('memo-input').value = '';
+  recogFinalBuffer = '';
+});
+
+// Enter to add memo (Shift+Enter for new line)
+document.getElementById('memo-input').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    document.getElementById('btn-add-memo').click();
+  }
+});
+
+// ---- Speech Recognition ----
+function getSpeechRecognition() {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) return null;
+  const rec = new SR();
+  rec.lang = 'ja-JP';
+  rec.continuous = true;
+  rec.interimResults = true;
+  return rec;
+}
+
+function setMicStatus(text, isRec) {
+  const elStatus = document.getElementById('memo-status');
+  elStatus.textContent = text;
+  elStatus.classList.toggle('recording', !!isRec);
+}
+
+function startVoiceMemo() {
+  speechRecognition = getSpeechRecognition();
+  if (!speechRecognition) {
+    toast('お使いのブラウザは音声入力に対応していません。Safari (iPad/Mac) または Chrome をお試しください', 'error');
+    return;
+  }
+  recogFinalBuffer = document.getElementById('memo-input').value;
+  if (recogFinalBuffer && !recogFinalBuffer.endsWith(' ') && !recogFinalBuffer.endsWith('\n')) {
+    recogFinalBuffer += ' ';
+  }
+
+  speechRecognition.onstart = () => {
+    isRecording = true;
+    const btn = document.getElementById('mic-btn');
+    btn.classList.add('recording');
+    document.getElementById('mic-label').textContent = '録音を停止';
+    setMicStatus('🔴 録音中… 話してください', true);
+  };
+
+  speechRecognition.onresult = (event) => {
+    let interim = '';
+    let finalAdd = '';
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+      const t = event.results[i][0].transcript;
+      if (event.results[i].isFinal) {
+        finalAdd += t;
+      } else {
+        interim += t;
+      }
+    }
+    if (finalAdd) {
+      recogFinalBuffer += finalAdd;
+    }
+    document.getElementById('memo-input').value = recogFinalBuffer + interim;
+  };
+
+  speechRecognition.onerror = (e) => {
+    setMicStatus('エラー: ' + (e.error || '不明'), false);
+    isRecording = false;
+    document.getElementById('mic-btn').classList.remove('recording');
+    document.getElementById('mic-label').textContent = '音声入力開始';
+    if (e.error === 'not-allowed') {
+      toast('マイクへのアクセスが拒否されました。ブラウザ設定で許可してください', 'error');
+    } else if (e.error === 'no-speech') {
+      toast('音声が検出されませんでした', 'error');
+    }
+  };
+
+  speechRecognition.onend = () => {
+    // Auto-restart if user hasn't stopped
+    if (isRecording) {
+      try { speechRecognition.start(); } catch (e) { /* ignore */ }
+    } else {
+      document.getElementById('mic-btn').classList.remove('recording');
+      document.getElementById('mic-label').textContent = '音声入力開始';
+      setMicStatus('', false);
+    }
+  };
+
+  try {
+    speechRecognition.start();
+  } catch (e) {
+    toast('音声入力の開始に失敗しました: ' + e.message, 'error');
+  }
+}
+
+function stopVoiceMemo() {
+  isRecording = false;
+  if (speechRecognition) {
+    try { speechRecognition.stop(); } catch (e) { /* ignore */ }
+  }
+  // Auto-save as voice memo if there's content
+  const input = document.getElementById('memo-input');
+  const text = input.value.trim();
+  if (text && text !== recogFinalBuffer.trim()) {
+    // Update with the most recent text
+  }
+  if (text) {
+    addFieldMemo(text, true);
+    input.value = '';
+    recogFinalBuffer = '';
+    toast('音声メモを保存しました', 'success');
+  }
+  setMicStatus('', false);
+}
+
+document.getElementById('mic-btn').addEventListener('click', () => {
+  if (isRecording) {
+    stopVoiceMemo();
+  } else {
+    startVoiceMemo();
+  }
+});
+
+// ============================================================
+// Pen mode and pointer detection
+// ============================================================
+let lastDetectedPointer = null;
+let penAutoDetected = false;
+
+function setInputMode(mode) {
+  state.inputMode = mode;
+  document.body.classList.toggle('pen-mode', mode === 'pen');
+  document.querySelectorAll('.mode-toggle .mode-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.mode === mode);
+  });
+  syncSketchPalette();
+  saveToStorage();
+}
+
+document.querySelectorAll('.mode-toggle .mode-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    setInputMode(btn.dataset.mode);
+    toast(btn.dataset.mode === 'pen' ? 'ペンモードに切替えました' : '指モードに切替えました', 'success');
+  });
+});
+
+// Auto-detect pen on first pen event
+document.addEventListener('pointerdown', (e) => {
+  lastDetectedPointer = e.pointerType;
+  if (e.pointerType === 'pen' && !penAutoDetected && state.inputMode !== 'pen') {
+    penAutoDetected = true;
+    setTimeout(() => {
+      if (confirm('タッチペンを検出しました。ペンモードに切替えますか？')) {
+        setInputMode('pen');
+      }
+    }, 100);
+  }
+}, true);
+
+// ============================================================
+// Undo system
+// ============================================================
+const MAX_UNDO = 30;
+
+function pushUndo(entry) {
+  state.undoStack.push(entry);
+  if (state.undoStack.length > MAX_UNDO) state.undoStack.shift();
+}
+
+function performUndo() {
+  const entry = state.undoStack.pop();
+  if (!entry) {
+    toast('取消できる操作がありません', 'error');
+    return;
+  }
+  if (entry.type === 'add-item') {
+    _origDeleteItem(entry.payload.id);
+    saveToStorage();
+  } else if (entry.type === 'add-sketch') {
+    state.sketches = state.sketches.filter(s => s.id !== entry.payload.id);
+    redrawSketches();
+    saveToStorage();
+  } else if (entry.type === 'delete-sketch') {
+    state.sketches.push(entry.payload);
+    redrawSketches();
+    saveToStorage();
+  } else if (entry.type === 'delete-item') {
+    state.items.push(entry.payload);
+    renderItem(entry.payload);
+    updateUI();
+    saveToStorage();
+  }
+  toast('取消しました', 'success');
+}
+
+document.getElementById('btn-undo').addEventListener('click', performUndo);
+document.addEventListener('keydown', (e) => {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+    e.preventDefault();
+    performUndo();
+  }
+});
+
+// Wrap addItem and deleteItem to push undo entries
+const _origAddItem = addItem;
+addItem = function(item) {
+  _origAddItem(item);
+  pushUndo({ type: 'add-item', payload: { id: item.id } });
+};
+const _origDeleteItem = deleteItem;
+deleteItem = function(id) {
+  const it = state.items.find(x => x.id === id);
+  if (it) pushUndo({ type: 'delete-item', payload: JSON.parse(JSON.stringify(it)) });
+  _origDeleteItem(id);
+};
+
+// ============================================================
+// Sketch layer (free-hand annotation)
+// ============================================================
+const sketchLayerGroup = L.layerGroup().addTo(map);
+const sketchLayers = {};
+
+function renderSketch(sk) {
+  const line = L.polyline(sk.points, {
+    color: sk.color,
+    weight: sk.width,
+    opacity: 0.92,
+    lineCap: 'round',
+    lineJoin: 'round',
+    smoothFactor: 1.0
+  });
+  line.on('click', (e) => {
+    if (state.eraserMode) {
+      L.DomEvent.stopPropagation(e);
+      pushUndo({ type: 'delete-sketch', payload: JSON.parse(JSON.stringify(sk)) });
+      state.sketches = state.sketches.filter(s => s.id !== sk.id);
+      redrawSketches();
+      saveToStorage();
+      toast('スケッチを削除しました', 'success');
+    }
+  });
+  line.addTo(sketchLayerGroup);
+  sketchLayers[sk.id] = line;
+}
+
+function redrawSketches() {
+  sketchLayerGroup.clearLayers();
+  Object.keys(sketchLayers).forEach(k => delete sketchLayers[k]);
+  state.sketches.forEach(renderSketch);
+}
+
+function syncSketchPalette() {
+  const palette = document.getElementById('sketch-palette');
+  const show = state.inputMode === 'pen' && state.activeTool === 'sketch';
+  palette.classList.toggle('show', show);
+  document.body.classList.toggle('sketch-active', show);
+}
+
+document.querySelectorAll('.palette-color').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.palette-color').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    state.sketchColor = btn.dataset.color;
+  });
+});
+document.querySelectorAll('.palette-width').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.palette-width').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    state.sketchWidth = parseInt(btn.dataset.width, 10);
+  });
+});
+document.getElementById('sketch-eraser').addEventListener('click', () => {
+  state.eraserMode = !state.eraserMode;
+  document.getElementById('sketch-eraser').classList.toggle('active', state.eraserMode);
+  toast(state.eraserMode ? '消しゴム ON：ストロークをタップで削除' : '消しゴム OFF', 'success');
+});
+document.getElementById('sketch-clear-all').addEventListener('click', () => {
+  if (state.sketches.length === 0) {
+    toast('スケッチはありません', 'error');
+    return;
+  }
+  if (!confirm(`スケッチ ${state.sketches.length} 件を全て削除しますか？`)) return;
+  state.sketches.forEach(sk => pushUndo({ type: 'delete-sketch', payload: JSON.parse(JSON.stringify(sk)) }));
+  state.sketches = [];
+  redrawSketches();
+  saveToStorage();
+  toast('全スケッチを削除しました', 'success');
+});
+
+// ============================================================
+// Pointer-based map interaction (pen drag-to-draw + sketch)
+// ============================================================
+const mapContainer = document.getElementById('map');
+let dragHeater = null;
+let drawingSketch = null;
+
+function shouldHandlePenAction(e) {
+  if (state.inputMode !== 'pen') return false;
+  return true;
+}
+
+function eventToLatLng(e) {
+  const rect = mapContainer.getBoundingClientRect();
+  return map.containerPointToLatLng([e.clientX - rect.left, e.clientY - rect.top]);
+}
+
+mapContainer.addEventListener('pointerdown', (e) => {
+  if (!shouldHandlePenAction(e)) return;
+  if (e.target.closest('.leaflet-marker-icon, .leaflet-control, .leaflet-popup, .fab-toolbar, .map-action, .gps-btn, .mode-banner, .sketch-palette')) return;
+
+  const latlng = eventToLatLng(e);
+
+  if (state.activeTool === 'heater') {
+    e.preventDefault();
+    map.dragging.disable();
+    document.body.classList.add('drawing-heater');
+    const sm = L.marker(latlng, {
+      icon: L.divIcon({
+        className: 'custom-pin',
+        html: '<div class="pin pin-start"><span>起</span></div>',
+        iconSize: [24, 32],
+        iconAnchor: [12, 28]
+      }),
+      interactive: false
+    }).addTo(map);
+    const line = L.polyline([latlng, latlng], {
+      color: COLORS.heater,
+      weight: 6,
+      opacity: 0.85,
+      dashArray: '8 5'
+    }).addTo(map);
+    const label = L.marker(latlng, {
+      icon: L.divIcon({
+        className: 'heater-drag-label',
+        html: '0m / 0°',
+        iconSize: null,
+        iconAnchor: [-15, -10]
+      }),
+      interactive: false
+    }).addTo(map);
+    dragHeater = { startLatLng: latlng, startMarker: sm, line, label };
+    try { mapContainer.setPointerCapture(e.pointerId); } catch (er) {}
+  } else if (state.activeTool === 'sketch') {
+    e.preventDefault();
+    map.dragging.disable();
+    const line = L.polyline([latlng], {
+      color: state.sketchColor,
+      weight: state.sketchWidth,
+      opacity: 0.9,
+      lineCap: 'round',
+      lineJoin: 'round'
+    }).addTo(map);
+    drawingSketch = {
+      color: state.sketchColor,
+      width: state.sketchWidth,
+      points: [[latlng.lat, latlng.lng]],
+      line
+    };
+    try { mapContainer.setPointerCapture(e.pointerId); } catch (er) {}
+  }
+});
+
+mapContainer.addEventListener('pointermove', (e) => {
+  if (!shouldHandlePenAction(e)) return;
+  if (dragHeater) {
+    const latlng = eventToLatLng(e);
+    dragHeater.line.setLatLngs([dragHeater.startLatLng, latlng]);
+    const dist = map.distance(dragHeater.startLatLng, latlng);
+    const az = bearing([dragHeater.startLatLng.lat, dragHeater.startLatLng.lng], [latlng.lat, latlng.lng]);
+    dragHeater.label.setLatLng(latlng);
+    dragHeater.label.setIcon(L.divIcon({
+      className: 'heater-drag-label',
+      html: `${Math.round(dist)}m / ${Math.round(az)}°`,
+      iconSize: null,
+      iconAnchor: [-15, -10]
+    }));
+  } else if (drawingSketch) {
+    const latlng = eventToLatLng(e);
+    const last = drawingSketch.points[drawingSketch.points.length - 1];
+    const lastPx = map.latLngToContainerPoint(L.latLng(last[0], last[1]));
+    const curPx = map.latLngToContainerPoint(latlng);
+    const dx = curPx.x - lastPx.x;
+    const dy = curPx.y - lastPx.y;
+    if (dx * dx + dy * dy >= 4) {
+      drawingSketch.points.push([latlng.lat, latlng.lng]);
+      drawingSketch.line.setLatLngs(drawingSketch.points);
+    }
+  }
+});
+
+function endPointerAction(e) {
+  if (!shouldHandlePenAction(e)) return;
+
+  if (dragHeater) {
+    const endLatLng = eventToLatLng(e);
+    const dist = map.distance(dragHeater.startLatLng, endLatLng);
+    map.removeLayer(dragHeater.startMarker);
+    map.removeLayer(dragHeater.line);
+    map.removeLayer(dragHeater.label);
+    map.dragging.enable();
+    document.body.classList.remove('drawing-heater');
+
+    if (dist >= 2) {
+      const az = bearing([dragHeater.startLatLng.lat, dragHeater.startLatLng.lng], [endLatLng.lat, endLatLng.lng]);
+      const length = Math.round(dist);
+      const azimuth = Math.round(az);
+      const watts = 160;
+      const item = {
+        id: genId(),
+        type: 'heater',
+        name: 'ヒーター-' + (state.items.filter(i => i.type === 'heater').length + 1),
+        start: [dragHeater.startLatLng.lat, dragHeater.startLatLng.lng],
+        end: [endLatLng.lat, endLatLng.lng],
+        length: length,
+        azimuth: azimuth,
+        watts: watts,
+        totalW: length * watts,
+        note: '',
+        photos: []
+      };
+      addItem(item);
+      saveToStorage();
+      toast(`✏️ ヒーター線を配置: ${length}m / 方位${azimuth}° — 線をタップで詳細編集`, 'success');
+    } else {
+      state.heaterStart = [dragHeater.startLatLng.lat, dragHeater.startLatLng.lng];
+      handleHeaterClick(dragHeater.startLatLng.lat, dragHeater.startLatLng.lng);
+    }
+    dragHeater = null;
+  } else if (drawingSketch) {
+    map.dragging.enable();
+    if (drawingSketch.points.length >= 2) {
+      const sk = {
+        id: 'sketch-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7),
+        color: drawingSketch.color,
+        width: drawingSketch.width,
+        points: drawingSketch.points,
+        createdAt: new Date().toISOString()
+      };
+      state.sketches.push(sk);
+      pushUndo({ type: 'add-sketch', payload: { id: sk.id } });
+      map.removeLayer(drawingSketch.line);
+      renderSketch(sk);
+      saveToStorage();
+    } else {
+      map.removeLayer(drawingSketch.line);
+    }
+    drawingSketch = null;
+  }
+}
+
+mapContainer.addEventListener('pointerup', endPointerAction);
+mapContainer.addEventListener('pointercancel', endPointerAction);
+
+// Hook fab-tool selection to sync sketch palette + add sketch hint
+document.querySelectorAll('.fab-tool').forEach(btn => {
+  btn.addEventListener('click', () => setTimeout(syncSketchPalette, 0));
+});
+
+// Extend TOOL_MODES to include sketch
+if (typeof TOOL_MODES !== 'undefined') {
+  TOOL_MODES.sketch = { icon: '🖊️', name: 'スケッチ', hint: 'ペンで地図上に直接描画（線・矢印・文字など）' };
+}
+
+// Add sketch to keyboard shortcuts (7)
+document.addEventListener('keydown', (e) => {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  if (e.key === '7') {
+    const sk = document.querySelector('.fab-tool[data-type="sketch"]');
+    if (sk && state.inputMode === 'pen') sk.click();
+  }
+});
+
+// ============================================================
+// Initial check for browser support
+(function checkSpeechSupport() {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) {
+    const btn = document.getElementById('mic-btn');
+    btn.disabled = true;
+    btn.style.opacity = '0.5';
+    btn.style.cursor = 'not-allowed';
+    document.getElementById('mic-label').textContent = '音声入力非対応';
+    document.getElementById('memo-status').textContent = 'このブラウザは音声入力に対応していません';
+  }
+})();
+
+// ============================================================
+// Init
+// ============================================================
+loadFromStorage().then(loaded => {
+  renderFieldMemos();
+  if (!loaded) {
+    updateUI();
+    // Auto-acquire GPS for initial map center (silent fallback to default)
+    autoCenterByGps();
+  } else {
+    // If saved data exists but it's an old/empty session without items, also try GPS
+    if (!state.items || state.items.length === 0) {
+      autoCenterByGps();
+    }
+  }
+});
+
+async function autoCenterByGps() {
+  if (!navigator.geolocation) return;
+  setTimeout(async () => {
+    try {
+      const pos = await acquireGps({ panMap: true, zoom: 19, timeout: 8000 });
+      toast(`現在地で地図を表示しました (精度 ${formatAcc(pos.accuracy)})`, 'success');
+    } catch (err) {
+      // Silent fall-back: keep default location
+      console.log('GPS auto-center skipped:', err.message);
+    }
+  }, 600);
+}
+
+// Auto-save on map move
+let saveDebounce;
+map.on('moveend zoomend', () => {
+  clearTimeout(saveDebounce);
+  saveDebounce = setTimeout(saveToStorage, 1000);
+});
+
+// Keyboard shortcuts
+document.addEventListener('keydown', (e) => {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  const keys = { '0': 'nav', '1': 'heater', '2': 'panel', '3': 'power', '4': 'wire', '5': 'area', '6': 'memo' };
+  if (keys[e.key]) {
+    const btn = document.querySelector(`.fab-tool[data-type="${keys[e.key]}"]`);
+    if (btn) btn.click();
+  }
+  if (e.key === 'Escape') {
+    cancelDrawing();
+    // Switch back to nav mode on Escape
+    const navBtn = document.querySelector('.fab-tool[data-type="nav"]');
+    if (navBtn) navBtn.click();
+    closeHeaterModal();
+    closeMarkerModal();
+  }
+});
+
+</script>
+</body>
+</html>
